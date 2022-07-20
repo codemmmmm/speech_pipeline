@@ -92,14 +92,13 @@ translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 
 tts_model_name = get_tts_name(args.in_language)
 
+if verbose:
+    print("Starting recording...")
+process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
+print('#' * 80)
+print('Press Ctrl+C to stop recording')
+print('#' * 80)
 try:
-    if verbose:
-        print("Starting recording...")
-    process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
-    print('#' * 80)
-    print('Press Ctrl+C to stop recording')
-    print('#' * 80)
- 
     printed_silence = False
     while True:
         # read mic data
@@ -114,9 +113,9 @@ try:
                 print("Translated: " + translation)
                 printed_silence = False
 
-                speech_file = "speech.wav"
-                print("Saving synthesized speech to file speech.wav..."  + "\n")   
+                speech_file = "speech.wav"                
                 subprocess.run(["tts", "--out_path", speech_file, "--text", translation, "--model_name", tts_model_name])             
+                print("Saved synthesized speech to file speech.wav..."  + "\n")   
                 print("Playing file...")
                 subprocess.run(["ffplay", speech_file, "-autoexit", "-loglevel", "error"])
                 
