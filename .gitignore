@@ -130,5 +130,6 @@ dmypy.json
 
 # My own ignores
 notes.txt
-translate-en-de/
-translate-de-en/
+marian-translate-en-de/
+marian-translate-de-en/
+.vscode/
