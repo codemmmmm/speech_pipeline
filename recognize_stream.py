@@ -14,9 +14,6 @@ verbose = False
 if not sys.platform == "linux":
     sys.exit("Please use a linux OS.")
 
-if not os.path.exists("model"):
-    sys.exit("Please download the model from https://alphacephei.com/vosk/models and unpack as 'model' in the current folder.")
-
 parser = argparse.ArgumentParser()
 parser.add_argument(
     '-l', '--list-devices', action='store_true',
@@ -24,6 +21,9 @@ parser.add_argument(
 parser.add_argument(
     '-d', '--device', default='default',
     help='set PulseAudio source (index or name)')
+parser.add_argument(
+    '-i', '--in-language', default="en", choices=("en", "de"),
+    help='set input language (en or de)')
 parser.add_argument(
     '-f', '--filter', action='store_true',
     help='use experimental noise suppression')
@@ -34,8 +34,21 @@ if args.list_devices:
     subprocess.run(['pactl', 'list', 'short', 'sources'])
     sys.exit(0)
 
+lang = "en"
+
 sample_rate=16000
-model = Model("model")
+# Initialise recognizer
+if verbose:
+    print("Initialising recognizer...")
+vosk_model_name_en = "vosk-model-en-us-0.22"
+vosk_model_name_de = "vosk-model-de-0.21"
+try:
+    if lang == "en":
+        model = Model(model_name=vosk_model_name_en)
+    else:
+        model = Model(model_name=vosk_model_name_de)
+except Exception:
+    sys.exit("No model could be downloaded!")
 rec = KaldiRecognizer(model, sample_rate)
 
 #for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
@@ -77,7 +90,7 @@ try:
 
                 speech_file = "speech.wav"
                 print("Saving synthesized speech to file speech.wav..."  + "\n")   
-                subprocess.run(["tts", "--out_path", speech_file, "--text", translation, "--model_name", "tts_models/de/thorsten/tacotron2-DCA"])             
+                subprocess.run(["tts", "--out_path", speech_file, "--text", translation, "--model_name", "tts_models/de/thorsten/vits"])             
                 print("Playing file...")
                 subprocess.run(["ffplay", speech_file, "-autoexit", "-loglevel", "error"])
                 print("Deleting file...")
