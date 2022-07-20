@@ -18,6 +18,15 @@ def get_marian_names(lang) -> (str, str):
     else:
         return (marian_model_name_de, marian_directory_de, "translation_de_to_en")
 
+def get_tts_name(lang) -> str:
+    if lang == "en":
+        # german speech
+        return "tts_models/de/thorsten/vits"
+        #return "tts_models/de/thorsten/tacotron2-DCA"
+    else:
+        # english speech
+        return "tts_models/en/ljspeech/tacotron2-DDC"
+
 SetLogLevel(-1)
 verbose = False
 if not sys.platform == "linux":
@@ -67,7 +76,7 @@ command = ('ffmpeg', '-loglevel', 'quiet', '-f', 'pulse', '-i', args.device,
 noise_filter = ('-af', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.6')
 stdout = ('-', ) #last part of the command
 
-#Initialise translator
+# Initialise translator
 if verbose:
     print("Initialising translator...")
 marian_model_name, marian_directory, task = get_marian_names(args.in_language)
@@ -80,6 +89,8 @@ else:
     trans_model = MarianMTModel.from_pretrained(marian_directory)
     tokenizer = MarianTokenizer.from_pretrained(marian_directory)
 translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
+
+tts_model_name = get_tts_name(args.in_language)
 
 try:
     if verbose:
@@ -105,7 +116,7 @@ try:
 
                 speech_file = "speech.wav"
                 print("Saving synthesized speech to file speech.wav..."  + "\n")   
-                subprocess.run(["tts", "--out_path", speech_file, "--text", translation, "--model_name", "tts_models/de/thorsten/vits"])             
+                subprocess.run(["tts", "--out_path", speech_file, "--text", translation, "--model_name", tts_model_name])             
                 print("Playing file...")
                 subprocess.run(["ffplay", speech_file, "-autoexit", "-loglevel", "error"])
                 
