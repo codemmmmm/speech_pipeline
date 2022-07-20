@@ -58,6 +58,7 @@ except Exception:
     sys.exit("Failed to download any Vosk model!")
 rec = KaldiRecognizer(rec_model, sample_rate)
 
+# make recording command
 #for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
 #command = ('ffmpeg', '-loglevel', 'quiet', '-f', 'alsa', '-i', args.device,
 #        '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le') #without pavucontrol
@@ -90,6 +91,7 @@ try:
  
     printed_silence = False
     while True:
+        # read mic data
         data = process.stdout.read(4000)
         if rec.AcceptWaveform(data):
             res = json.loads(rec.Result())
@@ -106,8 +108,6 @@ try:
                 subprocess.run(["tts", "--out_path", speech_file, "--text", translation, "--model_name", "tts_models/de/thorsten/vits"])             
                 print("Playing file...")
                 subprocess.run(["ffplay", speech_file, "-autoexit", "-loglevel", "error"])
-                print("Deleting file...")
-                os.remove(speech_file)
                 
             else:
                 if not printed_silence:

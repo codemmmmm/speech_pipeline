@@ -133,3 +133,4 @@ notes.txt
 marian-translate-en-de/
 marian-translate-de-en/
 .vscode/
+*.wav
