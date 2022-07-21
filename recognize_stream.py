@@ -27,25 +27,28 @@ def get_tts_name(lang) -> str:
         # english speech
         return "tts_models/en/ljspeech/tacotron2-DDC"
 
-SetLogLevel(-1)
-verbose = False
+def get_argparser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-l', '--list-devices', action='store_true',
+        help='show list of PulseAudio sources and exit (\'pactl list short sources\')')
+    parser.add_argument(
+        '-d', '--device', default='default',
+        help='set PulseAudio source (index or name)')
+    parser.add_argument(
+        '-i', '--in-language', default="en", choices=("en", "de"),
+        help='set input language')
+    parser.add_argument(
+        '-f', '--filter', action='store_true',
+        help='use experimental noise suppression')
+    return parser
+
 if not sys.platform == "linux":
     sys.exit("Please use a linux OS.")
+SetLogLevel(-1)
+verbose = False
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    '-l', '--list-devices', action='store_true',
-    help='show list of PulseAudio sources and exit (\'pactl list short sources\')')
-parser.add_argument(
-    '-d', '--device', default='default',
-    help='set PulseAudio source (index or name)')
-parser.add_argument(
-    '-i', '--in-language', default="en", choices=("en", "de"),
-    help='set input language (en or de)')
-parser.add_argument(
-    '-f', '--filter', action='store_true',
-    help='use experimental noise suppression')
-args = parser.parse_args()
+args = get_argparser().parse_args()
 
 if args.list_devices:
     print("index   name")
