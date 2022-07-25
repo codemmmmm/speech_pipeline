@@ -30,7 +30,7 @@ def prepareText(text,addStopChar):
         text = text + "."
     return text
 
-def synthesizeToFile(filename, text, url="http://localhost:5002", addStopChar=True):
+def synthesizeToFile(filename, text, speaker_name=None, url="http://localhost:5002", addStopChar=True):
     """Synthesize a text (no additional text cleaning!) using a Coqui TTS server.
 
     Args:
@@ -49,10 +49,11 @@ def synthesizeToFile(filename, text, url="http://localhost:5002", addStopChar=Tr
         return False
 
     try:
-        req = requests.get(url + "/api/tts", params={'text': prepareText(text, addStopChar)})
+        req = requests.get(url + "/api/tts", params={'text': prepareText(text, addStopChar), 'speaker_id': speaker_name if speaker_name else ''})
     except Exception as e:
         logging.error("Error calling Coqui TTS server api")
         print(e)
+        return False
     
     if req.status_code == 200 and req.headers['Content-Type'] == 'audio/wav':
         logging.info("Valid audio has been returned from Coqui TTS api.")
