@@ -36,6 +36,7 @@ def synthesizeToFile(filename, text, speaker_name=None, url="http://localhost:50
     Args:
         filename (string): Path, filename and .wav extension where synthesized voice will be saved. 
         text (string): Text to be synthesized.
+        speaker_name (string): speaker name for multispeaker models.
         url (string): URL of Coqui TTS server (default: http://localhost:5002)
         addStopChar (boolean): If true a dot will be added as last char if
             last char is not a common line ending character to avoid
