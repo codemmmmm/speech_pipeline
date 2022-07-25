@@ -5,6 +5,8 @@ import sys
 import json
 import subprocess
 import argparse
+import cTTS
+import time
 
 def get_marian_names(lang) -> (str, str):
     #https://huggingface.co/Helsinki-NLP/opus-mt-en-de
@@ -24,7 +26,7 @@ def get_tts_name(lang) -> str:
         return "tts_models/de/thorsten/vits"
     else:
         # english speech output
-        return "tts_models/en/vctk/vits" # "--speaker_idx", "p227"
+        return "tts_models/en/vctk/vits"
 
 def get_argparser():
     parser = argparse.ArgumentParser()
@@ -92,7 +94,20 @@ else:
     tokenizer = MarianTokenizer.from_pretrained(marian_directory)
 translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 
+# Initialise TTS
+if verbose:
+    print("Starting tts-server...")
 tts_model_name = get_tts_name(args.in_language)
+subprocess.Popen(["tts-server", "--model_name", tts_model_name], stdout=subprocess.PIPE)
+# wait till tts-server finished loading
+curl_cmd = ['curl', 'localhost:5002']
+curl = subprocess.run(curl_cmd)
+while curl.returncode != 0:
+    time.sleep(0.5)
+    curl = subprocess.run(curl_cmd)
+
+speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
+speech_file = "speech.wav"
 
 if verbose:
     print("Starting recording...")
@@ -113,14 +128,15 @@ try:
 
                 translation = translator(sequence)[0]['translation_text'] #structure: [{'translation_text': 'Guten Morgen.'}]
                 print("Translated: " + translation)
-                printed_silence = False
+                printed_silence = False                      
 
-                speech_file = "speech.wav"                
-                subprocess.run(["tts", "--out_path", speech_file, "--text", translation, "--model_name", tts_model_name])             
-                print("Saved synthesized speech to file speech.wav..."  + "\n")   
-                print("Playing file...")
-                subprocess.run(["ffplay", speech_file, "-autoexit", "-loglevel", "error"])
-                
+                print("Synthesizing speech...")
+                if cTTS.synthesizeToFile(speech_file, translation, speaker_name if args.in_language == 'de' else None):
+                    print("Saved synthesized speech to file " + speech_file + ".\n")
+                    print("Playing file...")
+                    subprocess.run(["ffplay", speech_file, "-autoexit", "-loglevel", "error"])
+                else:
+                    print("Failed to synthesize speech\n")                
             else:
                 if not printed_silence:
                     print("* silence *\n")
