@@ -5,6 +5,11 @@ import sys
 import json
 import subprocess
 import argparse
+# pylint: disable=redefined-outer-name, unused-argument
+from pathlib import Path
+
+from TTS.utils.manage import ModelManager
+from TTS.utils.synthesizer import Synthesizer
 
 def get_marian_names(lang) -> (str, str):
     #https://huggingface.co/Helsinki-NLP/opus-mt-en-de
@@ -20,12 +25,11 @@ def get_marian_names(lang) -> (str, str):
 
 def get_tts_name(lang) -> str:
     if lang == "en":
-        # german speech
+        # german speech output
         return "tts_models/de/thorsten/vits"
-        #return "tts_models/de/thorsten/tacotron2-DCA"
     else:
-        # english speech
-        return "tts_models/en/ljspeech/tacotron2-DDC"
+        # english speech output
+        return "tts_models/en/vctk/vits" # "--speaker_idx", "p227"
 
 def get_argparser():
     parser = argparse.ArgumentParser()
@@ -54,6 +58,54 @@ if args.list_devices:
     print("index   name")
     subprocess.run(['pactl', 'list', 'short', 'sources'])
     sys.exit(0)
+
+tts_model_name = get_tts_name(args.in_language)
+
+# Code taken and maybe adjusted from TTS/bin/synthesize.py
+# load model manager
+#path = Path(__file__).parent / "../.models.json"
+path = "/home/moritz/python/TTS/TTS/.models.json"
+manager = ModelManager(path)
+
+model_path = None
+config_path = None
+speakers_file_path = None
+language_ids_file_path = None
+vocoder_path = None
+vocoder_config_path = None
+encoder_path = None
+encoder_config_path = None
+
+# load pre-trained model paths
+model_path, config_path, model_item = manager.download_model(tts_model_name)
+vocoder_name = model_item["default_vocoder"]
+
+# load models
+synthesizer = Synthesizer(
+    model_path,
+    config_path,
+    speakers_file_path,
+    language_ids_file_path,
+    vocoder_path,
+    vocoder_config_path,
+    encoder_path,
+    encoder_config_path,
+)
+
+# kick it
+wav = synthesizer.tts(
+    "Good morning.", # text
+    "p227", # speaker_idx
+)
+
+# save the results
+out_path = "speech.wav"
+print(" > Saving output to {}".format(out_path))
+synthesizer.save_wav(wav, out_path)
+
+
+sys.exit()
+
 
 sample_rate=16000
 # Initialise recognizer
@@ -92,8 +144,6 @@ else:
     trans_model = MarianMTModel.from_pretrained(marian_directory)
     tokenizer = MarianTokenizer.from_pretrained(marian_directory)
 translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
-
-tts_model_name = get_tts_name(args.in_language)
 
 if verbose:
     print("Starting recording...")
