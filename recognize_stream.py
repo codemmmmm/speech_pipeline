@@ -20,12 +20,11 @@ def get_marian_names(lang) -> (str, str):
 
 def get_tts_name(lang) -> str:
     if lang == "en":
-        # german speech
+        # german speech output
         return "tts_models/de/thorsten/vits"
-        #return "tts_models/de/thorsten/tacotron2-DCA"
     else:
-        # english speech
-        return "tts_models/en/ljspeech/tacotron2-DDC"
+        # english speech output
+        return "tts_models/en/vctk/vits" # "--speaker_idx", "p227"
 
 def get_argparser():
     parser = argparse.ArgumentParser()
