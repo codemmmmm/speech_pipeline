@@ -98,7 +98,7 @@ translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 if verbose:
     print("Starting tts-server...")
 tts_model_name = get_tts_name(args.in_language)
-subprocess.Popen(["tts-server", "--model_name", tts_model_name], stdout=subprocess.PIPE)
+tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
 # wait till tts-server finished loading
 curl_cmd = ['curl', 'localhost:5002']
 curl = subprocess.run(curl_cmd)
@@ -111,16 +111,16 @@ speech_file = "speech.wav"
 
 if verbose:
     print("Starting recording...")
-process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
+record_process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
 print('#' * 80)
 print('Press Ctrl+C to stop recording')
 print('#' * 80)
 try:
     printed_silence = False
     while True:
-        # read mic data
-        data = process.stdout.read(4000)
-        if rec.AcceptWaveform(data):
+        # read ffmpeg stream
+        recorded_audio = record_process.stdout.read(100000)
+        if rec.AcceptWaveform(recorded_audio):
             res = json.loads(rec.Result())
             sequence = res['text']
             if sequence != "": #why does it detect empty lines sometimes?
@@ -143,7 +143,13 @@ try:
                     printed_silence = True
 
 except KeyboardInterrupt:
-    print('Done!')    
+    print('Done!')
+except Exception as e:
+    print("Unexcepted exception: " + e)    
+finally:
+    tts_server.kill()
+    record_process.kill()
+
 
 #final result doesn't do anything?
-#res = json.loads(rec.FinalResult())
+#res = json.loads(rec.FinalResult()), stdout=subprocess.PIPE
