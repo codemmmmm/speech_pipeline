@@ -113,8 +113,7 @@ pipe_name = 'tts_pipe'
 if not os.path.exists(pipe_name):
     os.mkfifo(pipe_name)
 # open read end of pipe
-# nonblocking -> trying to read from empty pipe returns EAGAIN
-# NONBLOCK or else the handlers do not open
+# NONBLOCK or else it does not open
 tts_pipe_read = os.open(pipe_name, os.O_RDONLY | os.O_NONBLOCK)
 # open write end of pipe
 tts_pipe_write = os.open(pipe_name, os.O_WRONLY)
