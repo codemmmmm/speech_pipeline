@@ -74,7 +74,7 @@ rec = KaldiRecognizer(rec_model, sample_rate)
 # make recording command
 #for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
 #command = ('ffmpeg', '-loglevel', 'quiet', '-f', 'alsa', '-i', args.device,
-#        '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le') #without pavucontrol
+#        '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le') #without PulseAudio
 command = ('ffmpeg', '-loglevel', 'quiet', '-f', 'pulse', '-i', args.device,
         '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
 noise_filter = ('-af', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.6')
@@ -100,18 +100,31 @@ if verbose:
 tts_model_name = get_tts_name(args.in_language)
 tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
 # wait till tts-server finished loading
-curl_cmd = ['curl', 'localhost:5002']
+curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
 curl = subprocess.run(curl_cmd)
 while curl.returncode != 0:
     time.sleep(0.5)
     curl = subprocess.run(curl_cmd)
-
 speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
 speech_file = "speech.wav"
+
+# make named pipe from tts to audio player
+pipe_name = 'tts_pipe'
+if not os.path.exists(pipe_name):
+    os.mkfifo(pipe_name)
+# open read end of pipe
+# nonblocking -> trying to read from empty pipe returns EAGAIN
+# NONBLOCK or else the handlers do not open
+tts_pipe_read = os.open(pipe_name, os.O_RDONLY | os.O_NONBLOCK)
+# open write end of pipe
+tts_pipe_write = os.open(pipe_name, os.O_WRONLY)
 
 if verbose:
     print("Starting recording...")
 record_process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
+#play_process = subprocess.Popen(['ffplay', '-', '-nodisp'], stdin=tts_pipe_read) # -f wav "-loglevel", "error"
+play_process = subprocess.Popen(['aplay', pipe_name, '-t', 'wav']) # -N
+
 print('#' * 80)
 print('Press Ctrl+C to stop recording')
 print('#' * 80)
@@ -119,11 +132,12 @@ try:
     printed_silence = False
     while True:
         # read ffmpeg stream
-        recorded_audio = record_process.stdout.read(100000)
+        recorded_audio = record_process.stdout.read(4000)
+
         if rec.AcceptWaveform(recorded_audio):
             res = json.loads(rec.Result())
             sequence = res['text']
-            if sequence != "": #why does it detect empty lines sometimes?
+            if sequence != "":
                 print("Recognized: " + sequence)
 
                 translation = translator(sequence)[0]['translation_text'] #structure: [{'translation_text': 'Guten Morgen.'}]
@@ -131,24 +145,28 @@ try:
                 printed_silence = False                      
 
                 print("Synthesizing speech...")
-                if cTTS.synthesizeToFile(speech_file, translation, speaker_name if args.in_language == 'de' else None):
-                    print("Saved synthesized speech to file " + speech_file + ".\n")
-                    print("Playing file...")
-                    subprocess.run(["ffplay", speech_file, "-autoexit", "-loglevel", "error"])
+                audio = cTTS.synthesizeToFile(speech_file, translation, speaker_name if args.in_language == 'de' else None)
+                if audio:
+                    print("Synthesized speech")                    
+                    print(f"Wrote {os.write(tts_pipe_write, audio)} bytes to pipe")
                 else:
                     print("Failed to synthesize speech\n")                
             else:
                 if not printed_silence:
                     print("* silence *\n")
                     printed_silence = True
-
 except KeyboardInterrupt:
     print('Done!')
 except Exception as e:
-    print("Unexcepted exception: " + e)    
+    print("Unexcepted exception:")    
+    print(e)  
 finally:
     tts_server.kill()
     record_process.kill()
+    os.close(tts_pipe_read)
+    os.close(tts_pipe_write)
+    os.remove(pipe_name)
+    
 
 
 #final result doesn't do anything?

@@ -60,9 +60,10 @@ def synthesizeToFile(filename, text, speaker_name=None, url="http://localhost:50
         logging.info("Valid audio has been returned from Coqui TTS api.")
         #logging.info("Length of content {} bytes.", req.headers['Content-Length'])
         #logging.info("Request took {} microseconds.", req.elapsed)
-        with open(filename, 'wb') as f:
-            f.write(req.content)
-        return True
+        #with open(filename, 'wb') as f:
+        #    f.write(req.content)
+        #return True
+        return req.content
     else:
         logging.warn("No audio has been returned from Coqui TTS server api")
 
