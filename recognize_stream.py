@@ -5,8 +5,9 @@ import sys
 import json
 import subprocess
 import argparse
-import cTTS
 import time
+
+import cTTS # not from package
 
 def get_marian_names(lang) -> (str, str):
     #https://huggingface.co/Helsinki-NLP/opus-mt-en-de
@@ -127,19 +128,18 @@ play_process = subprocess.Popen(['aplay', pipe_name, '-t', 'wav']) # -N
 print('#' * 80)
 print('Press Ctrl+C to stop recording')
 print('#' * 80)
-try:
-    printed_silence = False
+printed_silence = False # to prevent printing 'silence' too often
+try:    
     while True:
         # read ffmpeg stream
         recorded_audio = record_process.stdout.read(4000)
-
         if rec.AcceptWaveform(recorded_audio):
-            res = json.loads(rec.Result())
+            res = json.loads(rec.Result()) #final result doesn't do anything?
             sequence = res['text']
             if sequence != "":
                 print("Recognized: " + sequence)
 
-                translation = translator(sequence)[0]['translation_text'] #structure: [{'translation_text': 'Guten Morgen.'}]
+                translation = translator(sequence)[0]['translation_text']
                 print("Translated: " + translation)
                 printed_silence = False                      
 
@@ -165,8 +165,3 @@ finally:
     os.close(tts_pipe_read)
     os.close(tts_pipe_write)
     os.remove(pipe_name)
-    
-
-
-#final result doesn't do anything?
-#res = json.loads(rec.FinalResult()), stdout=subprocess.PIPE
