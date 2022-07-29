@@ -30,7 +30,7 @@ def prepareText(text,addStopChar):
         text = text + "."
     return text
 
-def synthesizeToFile(filename, text, speaker_name=None, url="http://localhost:5002", addStopChar=True):
+def synthesize(filename, text, speaker_name=None, url="http://localhost:5002", addStopChar=True):
     """Synthesize a text (no additional text cleaning!) using a Coqui TTS server.
 
     Args:

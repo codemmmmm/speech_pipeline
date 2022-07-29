@@ -144,7 +144,7 @@ try:
                 printed_silence = False                      
 
                 print("Synthesizing speech...")
-                audio = cTTS.synthesizeToFile(speech_file, translation, speaker_name if args.in_language == 'de' else None)
+                audio = cTTS.synthesize(speech_file, translation, speaker_name if args.in_language == 'de' else None)
                 if audio:
                     print("Synthesized speech")                    
                     print(f"Wrote {os.write(tts_pipe_write, audio)} bytes to pipe")
