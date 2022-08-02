@@ -6,6 +6,7 @@ import json
 import subprocess
 import argparse
 import time
+import multiprocessing as mp
 
 import cTTS # not from package
 
@@ -107,7 +108,6 @@ while curl.returncode != 0:
     time.sleep(0.5)
     curl = subprocess.run(curl_cmd)
 speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
-speech_file = "speech.wav"
 
 # make named pipe from tts to audio player
 pipe_name = 'tts_pipe'
@@ -119,6 +119,12 @@ tts_pipe_read = os.open(pipe_name, os.O_RDONLY | os.O_NONBLOCK)
 # open write end of pipe
 tts_pipe_write = os.open(pipe_name, os.O_WRONLY)
 
+# Initialise subprocess for concurrency
+def synthesize():
+    return cTTS.synthesize(tts_pipe_write, translation, speaker_name if args.in_language == 'de' else None)
+mp.set_start_method('fork')
+p = mp.Process(target=synthesize)
+
 if verbose:
     print("Starting recording...")
 record_process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
@@ -129,11 +135,12 @@ print('#' * 80)
 print('Press Ctrl+C to stop recording')
 print('#' * 80)
 printed_silence = False # to prevent printing 'silence' too often
-try:    
+try:
     while True:
         # read ffmpeg stream
         recorded_audio = record_process.stdout.read(4000)
         if rec.AcceptWaveform(recorded_audio):
+            p = mp.Process(target=synthesize)
             res = json.loads(rec.Result()) #final result doesn't do anything?
             sequence = res['text']
             if sequence != "":
@@ -143,13 +150,9 @@ try:
                 print("Translated: " + translation)
                 printed_silence = False                      
 
-                print("Synthesizing speech...")
-                audio = cTTS.synthesize(speech_file, translation, speaker_name if args.in_language == 'de' else None)
-                if audio:
-                    print("Synthesized speech")                    
-                    print(f"Wrote {os.write(tts_pipe_write, audio)} bytes to pipe")
-                else:
-                    print("Failed to synthesize speech\n")                
+                print("Synthesizing speech...(calling)")
+                p.start()
+                print("wrote bytes")
             else:
                 if not printed_silence:
                     print("* silence *\n")

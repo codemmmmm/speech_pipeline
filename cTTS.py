@@ -1,6 +1,7 @@
 import requests
 import json
 import logging
+import os
 
 __version__ = '0.0.1'
 
@@ -30,11 +31,11 @@ def prepareText(text,addStopChar):
         text = text + "."
     return text
 
-def synthesize(filename, text, speaker_name=None, url="http://localhost:5002", addStopChar=True):
+def synthesize(file_descriptor, text, speaker_name=None, url="http://localhost:5002", addStopChar=True):
     """Synthesize a text (no additional text cleaning!) using a Coqui TTS server.
 
     Args:
-        filename (string): Path, filename and .wav extension where synthesized voice will be saved. 
+        file_descriptor (string): file descriptor of the named pipe
         text (string): Text to be synthesized.
         speaker_name (string): speaker name for multispeaker models.
         url (string): URL of Coqui TTS server (default: http://localhost:5002)
@@ -55,16 +56,17 @@ def synthesize(filename, text, speaker_name=None, url="http://localhost:5002", a
         logging.error("Error calling Coqui TTS server api")
         print(e)
         return False
-    
+
     if req.status_code == 200 and req.headers['Content-Type'] == 'audio/wav':
         logging.info("Valid audio has been returned from Coqui TTS api.")
         #logging.info("Length of content {} bytes.", req.headers['Content-Length'])
         #logging.info("Request took {} microseconds.", req.elapsed)
-        #with open(filename, 'wb') as f:
-        #    f.write(req.content)
-        #return True
-        return req.content
+        print("Synthesized speech")
+        os.write(file_descriptor, req.content)
+        print(f"Wrote {len(req.content)} bytes to pipe")       
+        return True
     else:
         logging.warn("No audio has been returned from Coqui TTS server api")
+        print("Failed to synthesize speech\n") 
 
     return False
