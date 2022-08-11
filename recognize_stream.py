@@ -75,12 +75,12 @@ rec = KaldiRecognizer(rec_model, sample_rate)
 
 # make recording command
 #for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
-#command = ('ffmpeg', '-loglevel', 'quiet', '-f', 'alsa', '-i', args.device,
+#command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'alsa', '-i', args.device,
 #        '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le') #without PulseAudio
-command = ('ffmpeg', '-loglevel', 'quiet', '-f', 'pulse', '-i', args.device,
+command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', args.device,
         '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
 noise_filter = ('-af', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.6')
-stdout = ('-', ) #last part of the command
+stdout = ('-',) #last part of the command
 
 # Initialise translator
 if verbose:
@@ -96,75 +96,97 @@ else:
     tokenizer = MarianTokenizer.from_pretrained(marian_directory)
 translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 
-# Initialise TTS
-if verbose:
-    print("Starting tts-server...")
-tts_model_name = get_tts_name(args.in_language)
-tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
-# wait till tts-server finished loading
-curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
-curl = subprocess.run(curl_cmd)
-while curl.returncode != 0:
-    time.sleep(0.5)
-    curl = subprocess.run(curl_cmd)
-speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
+# # Initialise TTS
+# if verbose:
+#     print("Starting tts-server...")
+# tts_model_name = get_tts_name(args.in_language)
+# tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
+# # wait till tts-server finished loading
+# curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
+# curl = subprocess.run(curl_cmd)
+# while curl.returncode != 0:
+#     time.sleep(0.5)
+#     curl = subprocess.run(curl_cmd)
+# speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
 
 # make named pipe from tts to audio player
 pipe_name = 'tts_pipe'
 if not os.path.exists(pipe_name):
+    #open(pipe_name, 'wb')
     os.mkfifo(pipe_name)
 # open read end of pipe
-# NONBLOCK or else it does not open
-tts_pipe_read = os.open(pipe_name, os.O_RDONLY | os.O_NONBLOCK)
+#tts_pipe_read = os.open(pipe_name, os.O_RDONLY | os.O_NONBLOCK)
 # open write end of pipe
-tts_pipe_write = os.open(pipe_name, os.O_WRONLY)
+tts_pipe_write = os.open(pipe_name, os.O_RDWR)
 
 # Initialise subprocess for concurrency
-def synthesize():
-    return cTTS.synthesize(tts_pipe_write, translation, speaker_name if args.in_language == 'de' else None)
-mp.set_start_method('fork')
-p = mp.Process(target=synthesize)
+#mp.set_start_method('fork')
+#p = mp.Process(target=synthesize)
 
 if verbose:
     print("Starting recording...")
 record_process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
-#play_process = subprocess.Popen(['ffplay', '-', '-nodisp'], stdin=tts_pipe_read) # -f wav "-loglevel", "error"
-play_process = subprocess.Popen(['aplay', pipe_name, '-t', 'wav']) # -N
+#play_process = subprocess.Popen(['ffplay', 'pipe:0', '-nodisp', '-autoexit'], stdin=subprocess.PIPE) # -f wav "-loglevel", "error"
+#play_process = subprocess.Popen(['ffplay', '-', '-nodisp', '-f', 'wav'], stdin=tts_pipe_read) # -f qwav "-loglevel", "error"
+play_process = subprocess.Popen(['ffplay', pipe_name, '-nodisp', '-f', 'wav']) # -f wav "-loglevel", "error"
+#play_process = subprocess.Popen(['aplay', pipe_name, '-t', 'wav', '--buffer-time', '10000']) # -N
+#play_process = subprocess.Popen(['aplay', '-', '-t', 'wav'], stdin=subprocess.PIPE) # -N
+#play_process = subprocess.Popen(['cvlc', '-'], stdin=subprocess.PIPE)
+#play_process = subprocess.Popen(['cvlc', pipe_name])
+#play_process = subprocess.Popen(['mplayer', '-idle', '-format', 's16le', '-cache', '4096', '-'], stdin=subprocess.PIPE) # , '-cache', '4096'    '-pausing', '2', 
+#play_process = subprocess.Popen(['mplayer', '-idle',  '-format', 's16le', '-cache', '8096', pipe_name, '-noconsolecontrols']) # '-cache', '4096',
+#play_process = subprocess.Popen(['mpv', '--audio-format=s16', '--cache=yes', '-'], stdin=subprocess.PIPE) # --cache=yes '-idle=yes',
+#play_process = subprocess.Popen(['mpv', '--audio-format=s16', '--cache=yes', pipe_name]) # --cache=yes '--idle=yes' '--keep-open=always'
 
-print('#' * 80)
-print('Press Ctrl+C to stop recording')
-print('#' * 80)
 printed_silence = False # to prevent printing 'silence' too often
+ansi_green = "\u001b[32m"
+ansi_reset = "\u001b[0m"
 try:
+    # check if subprocesses started successfully
+    time.sleep(2) # without sleep it would check too early
+    if play_process.poll() not in (None, 0):
+        raise Exception("aplay/ffplay player failed to start!")
+    if record_process.poll() not in (None, 0):
+        raise Exception("ffmpeg recorder failed to start!")
+
+    print('#' * 80)
+    print('Press Ctrl+C to stop recording')
+    print('#' * 80)
     while True:
         # read ffmpeg stream
         recorded_audio = record_process.stdout.read(4000)
         if rec.AcceptWaveform(recorded_audio):
-            p = mp.Process(target=synthesize)
+            #p = mp.Process(target=synthesize)
             res = json.loads(rec.Result()) #final result doesn't do anything?
             sequence = res['text']
             if sequence != "":
-                print("Recognized: " + sequence)
+                print(ansi_green + "Recognized: "+ ansi_reset + sequence)
 
                 translation = translator(sequence)[0]['translation_text']
-                print("Translated: " + translation)
+                print(ansi_green + "Translated: "+ ansi_reset + translation)
                 printed_silence = False                      
 
                 print("Synthesizing speech...(calling)")
-                p.start()
-                print("wrote bytes")
+                tts_audio = cTTS.synthesize(translation, speaker_name if args.in_language == 'de' else None, file_descriptor=tts_pipe_write)
+                #tts_pipe_write = os.open(pipe_name, os.O_WRONLY)
+                #play_process.communicate(tts_audio)
+                #time.sleep(2)
+                #print("audio player returncode 1: ", play_process.poll())
+                #play_process.stdin.write(tts_audio) #p.start()
+                #play_process.stdin.write(b'\0')
+                #play_process.stdin.flush()
+                #play_process._stdin_write(tts_audio)
             else:
                 if not printed_silence:
                     print("* silence *\n")
                     printed_silence = True
+            print("audio player returncode: ", play_process.poll()) # might take a bit to update the status -> it probably quits after first play but is still shown as playing here
 except KeyboardInterrupt:
     print('Done!')
-except Exception as e:
-    print("Unexcepted exception:")    
-    print(e)  
 finally:
-    tts_server.kill()
+    #tts_server.kill()
     record_process.kill()
-    os.close(tts_pipe_read)
+    play_process.kill()
+    #os.close(tts_pipe_read)
     os.close(tts_pipe_write)
-    os.remove(pipe_name)
+    #os.remove(pipe_name)
