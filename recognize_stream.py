@@ -128,8 +128,8 @@ if verbose:
 record_process = subprocess.Popen(command + noise_filter + stdout if args.filter else command + stdout, stdout=subprocess.PIPE)
 #play_process = subprocess.Popen(['ffplay', 'pipe:0', '-nodisp', '-autoexit'], stdin=subprocess.PIPE) # -f wav "-loglevel", "error"
 #play_process = subprocess.Popen(['ffplay', '-', '-nodisp', '-f', 'wav'], stdin=tts_pipe_read) # -f qwav "-loglevel", "error"
-play_process = subprocess.Popen(['ffplay', pipe_name, '-nodisp', '-f', 'wav']) # -f wav "-loglevel", "error"
-#play_process = subprocess.Popen(['aplay', pipe_name, '-t', 'wav', '--buffer-time', '10000']) # -N
+#play_process = subprocess.Popen(['ffplay', pipe_name, '-nodisp', '-f', 'wav']) # -f wav "-loglevel", "error"
+play_process = subprocess.Popen(['aplay', pipe_name, '-t', 'wav', '--buffer-time', '1000000', '--buffer-size', '8192', '--period-size', '10000', '-N']) # -N , '--buffer-time', '10000', '--buffer-size', '8192'
 #play_process = subprocess.Popen(['aplay', '-', '-t', 'wav'], stdin=subprocess.PIPE) # -N
 #play_process = subprocess.Popen(['cvlc', '-'], stdin=subprocess.PIPE)
 #play_process = subprocess.Popen(['cvlc', pipe_name])
