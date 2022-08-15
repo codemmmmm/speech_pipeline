@@ -31,7 +31,7 @@ def prepareText(text,addStopChar):
         text = text + "."
     return text
 
-def synthesize(text, speaker_name=None, url="http://localhost:5002", addStopChar=True, file_descriptor=None):
+def synthesize(text, speaker_name=None, url="http://localhost:5002", addStopChar=True):
     """Synthesize a text (no additional text cleaning!) using a Coqui TTS server.
 
     Args:
@@ -41,7 +41,6 @@ def synthesize(text, speaker_name=None, url="http://localhost:5002", addStopChar
         addStopChar (boolean): If true a dot will be added as last char if
             last char is not a common line ending character to avoid
             max_decoder_steps error. Defaults to true.
-        file_descriptor (int): file descriptor of the named pipe
 
     Returns:
         boolean: "True" if audio could be retrieved from Coqui TTS server api. Otherwise "False"
@@ -62,13 +61,8 @@ def synthesize(text, speaker_name=None, url="http://localhost:5002", addStopChar
         #logging.info("Length of content {} bytes.", req.headers['Content-Length'])
         #logging.info("Request took {} microseconds.", req.elapsed)
         print("Synthesized speech")
-        # write to pipe
-        os.write(file_descriptor, req.content)
-        #os.close(file_descriptor)
-        #os.fsync(file_descriptor) # doesn't work...
-        #print(f"Wrote/returned {len(req.content)} bytes")       
-        #return req.content
-        return True
+        print(f"Returned {len(req.content)} bytes")       
+        return req.content
     else:
         logging.warn("No audio has been returned from Coqui TTS server api")
         print("Failed to synthesize speech\n") 
