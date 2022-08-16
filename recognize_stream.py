@@ -34,10 +34,10 @@ def get_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-l', '--list-devices', action='store_true',
-        help='show list of PulseAudio sources and exit (\'pactl list short sources\')')
+        help='show list of ALSA sources and exit (\'pactl list short sources\')')
     parser.add_argument(
         '-d', '--device', default='default',
-        help='set PulseAudio source (index or name)')
+        help='set ALSA source (name (recommended) or index)')
     parser.add_argument(
         '-i', '--in-language', default="en", choices=("en", "de"),
         help='set input language')
@@ -48,7 +48,9 @@ def get_argparser():
 
 def synth(q, translation, speaker_name):
     print("Synthesizing speech...(calling)")
-    q.put(cTTS.synthesize(translation, speaker_name))
+    result = cTTS.synthesize(translation, speaker_name)
+    if result:
+        q.put(result)
 
 def play(q, play_command, lock):
     play_process = subprocess.Popen(play_command, stdin=subprocess.PIPE)
@@ -88,7 +90,7 @@ rec = KaldiRecognizer(rec_model, sample_rate)
 #        '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le') #without PulseAudio
 record_command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', args.device,
         '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
-noise_filter = ('-af', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.6')
+noise_filter = ('-filter:a', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5')
 stdout = ('-',) #last part of the command
 # make play command
 play_command = ('aplay', '-', '-t', 'wav')
