@@ -46,16 +46,17 @@ def get_argparser():
         help='use experimental noise suppression')
     return parser
 
-def synth(q, translation, speaker_name):
-    print("Synthesizing speech...(calling)")
-    result = cTTS.synthesize(translation, speaker_name)
+def synth(q, lock, translation, speaker_name):
+    with lock:
+        print("Calling TTS...")
+        result = cTTS.synthesize(translation, speaker_name)
     if result:
         q.put(result)
 
-def play(q, play_command, lock):
+def play(q, lock, play_command):
     play_process = subprocess.Popen(play_command, stdin=subprocess.PIPE)
-    #with lock:
-    play_process.communicate(q.get())
+    with lock:
+        play_process.communicate(q.get())
 
 if not sys.platform == "linux":
     sys.exit("Please use a linux OS.")
@@ -90,7 +91,7 @@ rec = KaldiRecognizer(rec_model, sample_rate)
 #        '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le') #without PulseAudio
 record_command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', args.device,
         '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
-noise_filter = ('-filter:a', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5')
+noise_filter = ('-filter:a', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5') # -af afftdn=nf=-30
 stdout = ('-',) #last part of the command
 # make play command
 play_command = ('aplay', '-', '-t', 'wav')
@@ -125,14 +126,10 @@ speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
 if verbose:
     print("Starting recording...")
 record_process = subprocess.Popen(record_command + noise_filter + stdout if args.filter else record_command + stdout, stdout=subprocess.PIPE)
-#play_process = subprocess.Popen(['ffplay', 'pipe:0', '-nodisp', '-autoexit'], stdin=subprocess.PIPE) # -f wav "-loglevel", "error"
-#play_process = subprocess.Popen(['ffplay', '-', '-nodisp', '-f', 'wav'], stdin=tts_pipe_read) # -f qwav "-loglevel", "error"
-#play_process = subprocess.Popen(['ffplay', pipe_name, '-nodisp', '-f', 'wav']) # -f wav "-loglevel", "error"
-#play_process = subprocess.Popen(['aplay', pipe_name, '-t', 'wav', '--buffer-time', '1000000', '--buffer-size', '8192', '--period-size', '10000', '-N']) # -N , '--buffer-time', '10000', '--buffer-size', '8192'
-#play_process = subprocess.Popen(['aplay', '-', '-t', 'wav'], stdin=subprocess.PIPE) # -N
 
 q = mp.Queue()
-lock = mp.Lock()
+synth_lock = mp.Lock()
+player_lock = mp.Lock()
 printed_silence = False # to prevent printing 'silence' too often
 ansi_green = "\u001b[32m"
 ansi_reset = "\u001b[0m"
@@ -151,7 +148,7 @@ try:
         # read ffmpeg stream
         recorded_audio = record_process.stdout.read(4000)
         if rec.AcceptWaveform(recorded_audio):
-            res = json.loads(rec.Result()) #final result doesn't do anything?
+            res = json.loads(rec.Result())
             sequence = res['text']
             if sequence != "":
                 print(ansi_green + "Recognized: "+ ansi_reset + sequence)
@@ -159,11 +156,10 @@ try:
                 translation = translator(sequence)[0]['translation_text']
                 print(ansi_green + "Translated: "+ ansi_reset + translation)
                 printed_silence = False                      
-                # does the synth need to be called as a process?
-                p_write = mp.Process(target=synth, args=(q, translation, speaker_name if args.in_language == 'de' else None))
-                p_write.start()
-                p_read = mp.Process(target=play, args=(q, play_command, lock))
-                p_read.start()
+                p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
+                p_synth.start()
+                p_play = mp.Process(target=play, args=(q, player_lock, play_command))
+                p_play.start()
             else:
                 if not printed_silence:
                     print("* silence *\n")
