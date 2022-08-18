@@ -155,7 +155,7 @@ def main():
         time.sleep(2) # without sleep it would check too early
         #if play_process.poll() not in (None, 0):
         #    raise Exception("aplay/ffplay player failed to start!")
-        if record_process.poll() not in (None, 0):
+        if record_process.poll() not in (None, 0): # should just be: if not None ?
             raise Exception("ffmpeg recorder failed to start!")
 
         print('#' * 80)
@@ -165,12 +165,11 @@ def main():
             # read ffmpeg stream
             recorded_audio = record_process.stdout.read(4000)
             if rec.AcceptWaveform(recorded_audio):
-                res = json.loads(rec.Result())
-                sequence = res['text']
-                if sequence != "": # if sequence.trim() not in ("", "the", "one", ...) or just discard all single word recognitions?
-                    print_green(str_to_color="Recognized: ", str=sequence)
-
-                    translation = translator(sequence)[0]['translation_text']
+                result = json.loads(rec.Result())
+                text = result['text']
+                if text != "": # if text.trim() not in ("", "the", "one", ...) or just discard all single word recognitions?
+                    print_green(str_to_color="Recognized: ", str=text)
+                    translation = translator(text)[0]['translation_text']
                     print_green(str_to_color="Translated: ", str=translation)
                     printed_silence = False                      
                     p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
