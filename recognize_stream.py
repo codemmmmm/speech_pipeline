@@ -15,6 +15,22 @@ def print_green(str_to_color, str=""):
     ANSI_RESET = "\u001b[0m"
     print(ANSI_GREEN + str_to_color + ANSI_RESET + str)
 
+def get_argparser():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-l', '--list-devices', action='store_true',
+        help='show list of ALSA sources and exit (\'pactl list short sources\')')
+    parser.add_argument(
+        '-d', '--device', default='default',
+        help='set ALSA source (name (recommended) or index)')
+    parser.add_argument(
+        '-i', '--in-language', default="en", choices=("en", "de"),
+        help='set input language')
+    parser.add_argument(
+        '-f', '--filter', action='store_true',
+        help='use noise suppression')
+    return parser
+
 def get_marian_names(lang) -> (str, str):
     #https://huggingface.co/Helsinki-NLP/opus-mt-en-de
     #https://huggingface.co/Helsinki-NLP/opus-mt-de-e
@@ -35,22 +51,6 @@ def get_tts_name(in_lang) -> str:
         # english speech output
         return "tts_models/en/vctk/vits"
 
-def get_argparser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-l', '--list-devices', action='store_true',
-        help='show list of ALSA sources and exit (\'pactl list short sources\')')
-    parser.add_argument(
-        '-d', '--device', default='default',
-        help='set ALSA source (name (recommended) or index)')
-    parser.add_argument(
-        '-i', '--in-language', default="en", choices=("en", "de"),
-        help='set input language')
-    parser.add_argument(
-        '-f', '--filter', action='store_true',
-        help='use experimental noise suppression')
-    return parser
-
 def load_vosk_model(in_lang):
     """downloads model automatically"""
     vosk_model_name_en = "vosk-model-en-us-0.22"
@@ -61,6 +61,14 @@ def load_vosk_model(in_lang):
         return Model(model_name=vosk_model_name_de)
     except Exception:
         sys.exit("Failed to find or download any Vosk model!")
+
+def make_record_command(device: str, filter: bool, sample_rate):
+    command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', device,
+            '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
+    # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
+    noise_filter = ('-filter:a', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5') # -af afftdn=nf=-30
+    use_stdout = ('-',)
+    return command + noise_filter + use_stdout if filter else command + use_stdout;
 
 def synth(q, lock, translation, speaker_name):
     # lock to prevent tts-server returning a small sentence before a longer sentence that was requested earlier
@@ -97,17 +105,6 @@ def main():
     rec_model = load_vosk_model(args.in_language)
     rec = KaldiRecognizer(rec_model, SAMPLE_RATE)
 
-    # assemble recording command
-    # for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
-    #command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'alsa', '-i', args.device,
-    #        '-ar', str(SAMPLE_RATE) , '-ac', '1', '-f', 's16le') #without PulseAudio
-    record_command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', args.device,
-            '-ar', str(SAMPLE_RATE) , '-ac', '1', '-f', 's16le')
-    noise_filter = ('-filter:a', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5') # -af afftdn=nf=-30
-    stdout = ('-',) #last part of the command
-    # make play command
-    play_command = ('aplay', '-', '-t', 'wav')
-
     # Initialise translator
     if verbose:
         print("Initialising translator...")
@@ -135,15 +132,16 @@ def main():
     #     curl = subprocess.run(curl_cmd)
     speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
 
-    if verbose:
-        print("Starting recording...")
-    record_process = subprocess.Popen(record_command + noise_filter + stdout if args.filter else record_command + stdout, stdout=subprocess.PIPE)
-
     q = mp.Queue()
     synth_lock = mp.Lock()
     player_lock = mp.Lock()
-    printed_silence = False # to prevent printing 'silence' too often
-    
+
+    play_command = ('aplay', '-', '-t', 'wav')
+    record_command = make_record_command(args.device, args.filter, SAMPLE_RATE)
+    record_process = subprocess.Popen(record_command, stdout=subprocess.PIPE)
+    if verbose:
+        print("Starting recording...")    
+    printed_silence = False # to prevent printing 'silence' too often    
     try:
         # check if subprocesses started successfully
         time.sleep(2) # without sleep it would check too early
