@@ -10,6 +10,11 @@ import multiprocessing as mp
 
 import cTTS # my own edited and not from package
 
+def print_green(str_to_color, str):
+    ANSI_GREEN = "\u001b[32m"
+    ANSI_RESET = "\u001b[0m"
+    print(ANSI_GREEN + str_to_color + ANSI_RESET + str)
+
 def get_marian_names(lang) -> (str, str):
     #https://huggingface.co/Helsinki-NLP/opus-mt-en-de
     #https://huggingface.co/Helsinki-NLP/opus-mt-de-e
@@ -133,8 +138,7 @@ def main():
     synth_lock = mp.Lock()
     player_lock = mp.Lock()
     printed_silence = False # to prevent printing 'silence' too often
-    ansi_green = "\u001b[32m"
-    ansi_reset = "\u001b[0m"
+    
     try:
         # check if subprocesses started successfully
         time.sleep(2) # without sleep it would check too early
@@ -152,11 +156,11 @@ def main():
             if rec.AcceptWaveform(recorded_audio):
                 res = json.loads(rec.Result())
                 sequence = res['text']
-                if sequence != "":
-                    print(ansi_green + "Recognized: "+ ansi_reset + sequence)
+                if sequence != "": # if sequence.trim() not in ("", "the", "one", ...) or just discard all single word recognitions?
+                    print_green(str_to_color="Recognized: ", str=sequence)
 
                     translation = translator(sequence)[0]['translation_text']
-                    print(ansi_green + "Translated: "+ ansi_reset + translation)
+                    print_green(str_to_color="Translated: ", str=translation)
                     printed_silence = False                      
                     p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
                     p_synth.start()
