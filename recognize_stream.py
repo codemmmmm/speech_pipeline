@@ -39,9 +39,11 @@ def get_marian_names(lang) -> (str, str):
     marian_model_name_de = "Helsinki-NLP/opus-mt-de-en"
     marian_directory_de = 'marian-translate-de-en'
     if lang == "en":
-        return (marian_model_name_en, marian_directory_en, "translation_en_to_de")
+        task = "translation_en_to_de"
+        return (marian_model_name_en, marian_directory_en, task)
     else:
-        return (marian_model_name_de, marian_directory_de, "translation_de_to_en")
+        task = "translation_de_to_en"
+        return (marian_model_name_de, marian_directory_de, task)
 
 def get_tts_name(in_lang) -> str:
     if in_lang == "en":
@@ -61,6 +63,19 @@ def load_vosk_model(in_lang):
         return Model(model_name=vosk_model_name_de)
     except Exception:
         sys.exit("Failed to find or download any Vosk model!")
+
+def load_trans_models(marian_directory, marian_directory_en):
+    if not os.path.exists(marian_directory):
+        # download models and then load local model files
+        trans_model = MarianMTModel.from_pretrained(marian_model_name)
+        tokenizer = MarianTokenizer.from_pretrained(marian_model_name)
+        tokenizer.save_pretrained(marian_directory)
+        trans_model.save_pretrained(marian_directory)
+    else:
+        # load local model files
+        trans_model = MarianMTModel.from_pretrained(marian_directory)
+        tokenizer = MarianTokenizer.from_pretrained(marian_directory)
+    return trans_model, tokenizer
 
 def make_record_command(device: str, filter: bool, sample_rate):
     command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', device,
@@ -109,14 +124,7 @@ def main():
     if verbose:
         print("Initialising translator...")
     marian_model_name, marian_directory, task = get_marian_names(args.in_language)
-    if not os.path.exists(marian_directory):
-        trans_model = MarianMTModel.from_pretrained(marian_model_name)
-        tokenizer = MarianTokenizer.from_pretrained(marian_model_name)
-        tokenizer.save_pretrained(marian_directory)
-        trans_model.save_pretrained(marian_directory)
-    else:
-        trans_model = MarianMTModel.from_pretrained(marian_directory)
-        tokenizer = MarianTokenizer.from_pretrained(marian_directory)
+    trans_model, tokenizer = load_trans_models(marian_directory, marian_model_name)
     translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 
     # # Initialise TTS
