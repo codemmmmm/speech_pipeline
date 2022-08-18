@@ -10,7 +10,7 @@ import multiprocessing as mp
 
 import cTTS # my own edited and not from package
 
-def print_green(str_to_color, str):
+def print_green(str_to_color, str=""):
     ANSI_GREEN = "\u001b[32m"
     ANSI_RESET = "\u001b[0m"
     print(ANSI_GREEN + str_to_color + ANSI_RESET + str)
@@ -51,6 +51,17 @@ def get_argparser():
         help='use experimental noise suppression')
     return parser
 
+def load_vosk_model(in_lang):
+    """downloads model automatically"""
+    vosk_model_name_en = "vosk-model-en-us-0.22"
+    vosk_model_name_de = "vosk-model-de-0.21"
+    try:
+        if in_lang == "en":
+            return Model(model_name=vosk_model_name_en)
+        return Model(model_name=vosk_model_name_de)
+    except Exception:
+        sys.exit("Failed to find or download any Vosk model!")
+
 def synth(q, lock, translation, speaker_name):
     # lock to prevent tts-server returning a small sentence before a longer sentence that was requested earlier
     with lock:
@@ -61,12 +72,14 @@ def synth(q, lock, translation, speaker_name):
 
 def play(q, lock, play_command):
     play_process = subprocess.Popen(play_command, stdin=subprocess.PIPE)
+    # lock to prevent playing multiple files at the same time
     with lock:
         play_process.communicate(q.get())
 
 def main():
     if not sys.platform == "linux":
         sys.exit("Please use a linux OS.")
+    # disable log prints
     SetLogLevel(-1)
     verbose = False
 
@@ -75,29 +88,21 @@ def main():
     if args.list_devices:
         print("index   name")
         subprocess.run(['pactl', 'list', 'short', 'sources'])
-        sys.exit(0)
+        sys.exit()
 
-    sample_rate=16000
+    SAMPLE_RATE=16000
     # Initialise recognizer
     if verbose:
         print("Initialising recognizer...")
-    vosk_model_name_en = "vosk-model-en-us-0.22"
-    vosk_model_name_de = "vosk-model-de-0.21"
-    try:
-        if args.in_language == "en":
-            rec_model = Model(model_name=vosk_model_name_en)
-        else:
-            rec_model = Model(model_name=vosk_model_name_de)
-    except Exception:
-        sys.exit("Failed to download any Vosk model!")
-    rec = KaldiRecognizer(rec_model, sample_rate)
+    rec_model = load_vosk_model(args.in_language)
+    rec = KaldiRecognizer(rec_model, SAMPLE_RATE)
 
     # assemble recording command
     # for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
     #command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'alsa', '-i', args.device,
-    #        '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le') #without PulseAudio
+    #        '-ar', str(SAMPLE_RATE) , '-ac', '1', '-f', 's16le') #without PulseAudio
     record_command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', args.device,
-            '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
+            '-ar', str(SAMPLE_RATE) , '-ac', '1', '-f', 's16le')
     noise_filter = ('-filter:a', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5') # -af afftdn=nf=-30
     stdout = ('-',) #last part of the command
     # make play command
