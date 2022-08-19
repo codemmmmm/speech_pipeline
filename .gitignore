@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # My own ignores
-notes.txt
+notes.md
 marian-translate-en-de/
 marian-translate-de-en/
 .vscode/

@@ -7,6 +7,7 @@ import subprocess
 import argparse
 import time
 import multiprocessing as mp
+import logging
 
 import cTTS # my own edited and not from package
 
@@ -88,7 +89,7 @@ def make_record_command(device: str, filter: bool, sample_rate):
 def synth(q, lock, translation, speaker_name):
     # lock to prevent tts-server returning a small sentence before a longer sentence that was requested earlier
     with lock:
-        print("Calling TTS...")
+        logging.info("Calling TTS...")
         result = cTTS.synthesize(translation, speaker_name)
     if result:
         q.put(result)
@@ -102,9 +103,9 @@ def play(q, lock, play_command):
 def main():
     if not sys.platform == "linux":
         sys.exit("Please use a linux OS.")
-    # disable log prints
+    # disable vosk log prints
     SetLogLevel(-1)
-    verbose = False
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARNING)
 
     args = get_argparser().parse_args()
 
@@ -115,21 +116,18 @@ def main():
 
     SAMPLE_RATE=16000
     # Initialise recognizer
-    if verbose:
-        print("Initialising recognizer...")
+    logging.info("Initialising recognizer...")
     rec_model = load_vosk_model(args.in_language)
     rec = KaldiRecognizer(rec_model, SAMPLE_RATE)
 
     # Initialise translator
-    if verbose:
-        print("Initialising translator...")
+    logging.info("Initialising translator...")
     marian_model_name, marian_directory, task = get_marian_names(args.in_language)
     trans_model, tokenizer = load_trans_models(marian_directory, marian_model_name)
     translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 
     # # Initialise TTS
-    # if verbose:
-    #     print("Starting tts-server...")
+    # logging.info("Starting tts-server...")
     # tts_model_name = get_tts_name(args.in_language)
     # tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
     # # wait till tts-server finished loading
@@ -147,10 +145,10 @@ def main():
     play_command = ('aplay', '-', '-t', 'wav')
     record_command = make_record_command(args.device, args.filter, SAMPLE_RATE)
     record_process = subprocess.Popen(record_command, stdout=subprocess.PIPE)
-    if verbose:
-        print("Starting recording...")    
+    logging.info("Starting recording...")    
 
-    printed_silence = False # to prevent printing 'silence' too often    
+    # to prevent printing 'silence' too often
+    printed_silence = False
     try:
         # check if subprocesses started successfully
         time.sleep(2) # without sleep it would check too early
