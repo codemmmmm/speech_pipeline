@@ -28,7 +28,7 @@ def get_argparser():
         help='set input language')
     parser.add_argument(
         '-f', '--filter', action='store_true',
-        help='use noise suppression')
+        help='use denoiser')
     return parser
 
 def get_marian_names(lang) -> (str, str):
@@ -81,7 +81,7 @@ def make_record_command(device: str, filter: bool, sample_rate):
     command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', device,
             '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
-    noise_filter = ('-filter:a', 'arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5') # -af afftdn=nf=-30
+    noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
     use_stdout = ('-',)
     return command + noise_filter + use_stdout if filter else command + use_stdout;
 
@@ -149,6 +149,7 @@ def main():
     record_process = subprocess.Popen(record_command, stdout=subprocess.PIPE)
     if verbose:
         print("Starting recording...")    
+
     printed_silence = False # to prevent printing 'silence' too often    
     try:
         # check if subprocesses started successfully
@@ -167,7 +168,7 @@ def main():
             if rec.AcceptWaveform(recorded_audio):
                 result = json.loads(rec.Result())
                 text = result['text']
-                if text != "": # if text.trim() not in ("", "the", "one", ...) or just discard all single word recognitions?
+                if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
                     print_green(str_to_color="Recognized: ", str=text)
                     translation = translator(text)[0]['translation_text']
                     print_green(str_to_color="Translated: ", str=translation)
