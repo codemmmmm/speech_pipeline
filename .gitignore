@@ -135,3 +135,4 @@ marian-translate-de-en/
 .vscode/
 *.wav
 beguiling-drafter-2018-08-30
+test.py
