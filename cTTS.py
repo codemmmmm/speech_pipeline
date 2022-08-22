@@ -63,6 +63,6 @@ def synthesize(text, speaker_name=None, url="http://localhost:5002", addStopChar
         print(f"Synthesized speech and returned {len(req.content)} bytes")       
         return req.content
     else:
-        logging.warn("No audio has been returned from Coqui TTS server")
+        logging.warning("No audio has been returned from Coqui TTS server.")
 
     return False

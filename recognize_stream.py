@@ -12,9 +12,9 @@ import logging
 import cTTS # my own edited and not from package
 
 def print_green(str_to_color, str=""):
-    ANSI_GREEN = "\u001b[32m"
-    ANSI_RESET = "\u001b[0m"
-    print(ANSI_GREEN + str_to_color + ANSI_RESET + str)
+    ansi_green = "\u001b[32m"
+    ansi_reset = "\u001b[0m"
+    print(ansi_green + str_to_color + ansi_reset + str)
 
 def get_argparser():
     parser = argparse.ArgumentParser()
@@ -62,8 +62,8 @@ def load_vosk_model(in_lang):
         if in_lang == "en":
             return Model(model_name=vosk_model_name_en)
         return Model(model_name=vosk_model_name_de)
-    except Exception:
-        sys.exit("Failed to find or download any Vosk model!")
+    except Exception as e:
+        sys.exit("Exception: " + str(e))
 
 def load_trans_models(marian_directory, marian_directory_en):
     if not os.path.exists(marian_directory):
@@ -180,7 +180,7 @@ def main():
                         print("* silence *\n")
                         printed_silence = True
     except KeyboardInterrupt:
-        print('Done!')
+        print_green('Done!')
     finally:
         #tts_server.kill()
         record_process.kill()
