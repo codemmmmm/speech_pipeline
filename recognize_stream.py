@@ -157,7 +157,7 @@ def main():
         if record_process.poll() not in (None, 0): # should just be: if not None ?
             raise Exception("ffmpeg recorder failed to start!")
 
-        print('#' * 90)
+        print('#' * 80)
         print('Press Ctrl+C to stop recording')
         print('#' * 80)
         while True:
