@@ -84,7 +84,7 @@ def make_record_command(device: str, filter: bool, sample_rate):
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
     noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
     use_stdout = ('-',)
-    return command + noise_filter + use_stdout if filter else command + use_stdout;
+    return command + noise_filter + use_stdout if filter else command + use_stdout
 
 def synth(q, lock, translation, speaker_name):
     # lock to prevent tts-server returning a small sentence before a longer sentence that was requested earlier
@@ -142,7 +142,7 @@ def main():
     synth_lock = mp.Lock()
     player_lock = mp.Lock()
 
-    play_command = ('aplay', '-', '-t', 'wav')
+    play_command = ('aplay', '-', '-t', 'wav', '--quiet')
     record_command = make_record_command(args.device, args.filter, SAMPLE_RATE)
     record_process = subprocess.Popen(record_command, stdout=subprocess.PIPE)
     logging.info("Starting recording...")    
