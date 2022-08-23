@@ -19,11 +19,8 @@ def print_green(str_to_color, str=""):
 def get_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-l', '--list-devices', action='store_true',
-        help='show list of ALSA sources and exit (\'pactl list short sources\')')
-    parser.add_argument(
-        '-d', '--device', default='default',
-        help='set ALSA source (name (recommended) or index)')
+        'in_video',
+        help='video file for input')
     parser.add_argument(
         '-i', '--in-language', default="en", choices=("en", "de"),
         help='set input language')
@@ -78,9 +75,9 @@ def load_trans_models(marian_directory, marian_model_name):
         tokenizer = MarianTokenizer.from_pretrained(marian_directory)
     return trans_model, tokenizer
 
-def make_record_command(device: str, filter: bool, sample_rate):
-    command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', device,
-            '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
+def make_ffmpeg_command(in_video: str, filter: bool, sample_rate: int) -> str: 
+    command = ('ffmpeg', '-loglevel', 'error', '-i', in_video,
+            '-ar', str(sample_rate), '-ac', '1', '-f', 'wav',)
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
     noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
     use_stdout = ('-',)
@@ -106,15 +103,9 @@ def main():
     # disable vosk log prints
     SetLogLevel(-1)
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARNING)
-
     args = get_argparser().parse_args()
 
-    if args.list_devices:
-        print("index   name")
-        subprocess.run(['pactl', 'list', 'short', 'sources'])
-        sys.exit()
-
-    SAMPLE_RATE=16000
+    SAMPLE_RATE=48000
     # Initialise recognizer
     logging.info("Initialising recognizer...")
     rec_model = load_vosk_model(args.in_language)
@@ -143,9 +134,9 @@ def main():
     player_lock = mp.Lock()
 
     play_command = ('aplay', '-', '-t', 'wav', '--quiet')
-    record_command = make_record_command(args.device, args.filter, SAMPLE_RATE)
-    record_process = subprocess.Popen(record_command, stdout=subprocess.PIPE)
-    logging.info("Starting recording...")    
+    ffmpeg_command = make_ffmpeg_command(args.in_video, args.filter, SAMPLE_RATE)
+    ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
+    logging.info("Starting ffmpeg...")    
 
     # to prevent printing 'silence' too often
     printed_silence = False
@@ -154,16 +145,16 @@ def main():
         time.sleep(2) # without sleep it would check too early
         #if play_process.poll() not in (None, 0):
         #    raise Exception("aplay/ffplay player failed to start!")
-        if record_process.poll() not in (None, 0): # should just be: if not None ?
-            raise Exception("ffmpeg recorder failed to start!")
+        if ffmpeg_process.poll() not in (None, 0): # should just be: if not None ?
+            raise Exception("ffmpeg failed to start!")
 
         print('#' * 80)
-        print('Press Ctrl+C to stop recording')
+        print('Press Ctrl+C to stop')
         print('#' * 80)
         while True:
             # read ffmpeg stream
-            recorded_audio = record_process.stdout.read(4000)
-            if rec.AcceptWaveform(recorded_audio):
+            audio = ffmpeg_process.stdout.read(4000)
+            if rec.AcceptWaveform(audio):
                 result = json.loads(rec.Result())
                 text = result['text']
                 if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
@@ -183,7 +174,7 @@ def main():
         print_green('Done!')
     finally:
         #tts_server.kill()
-        record_process.kill()
+        ffmpeg_process.kill()
 
 if __name__ == "__main__":
     main()
