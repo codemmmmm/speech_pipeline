@@ -148,13 +148,9 @@ def main():
     ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
     logging.info("Starting ffmpeg...")    
 
-    # to prevent printing 'silence' too often
-    printed_silence = False
     try:
         # check if subprocesses started successfully
         time.sleep(2) # without sleep it would check too early
-        #if play_process.poll() not in (None, 0):
-        #    raise Exception("aplay/ffplay player failed to start!")
         if ffmpeg_process.poll() not in (None, 0): # should just be: if not None ?
             raise Exception("ffmpeg failed to start!")
 
@@ -171,15 +167,10 @@ def main():
                     print_green(str_to_color="Recognized: ", str=text)
                     translation = translator(text)[0]['translation_text']
                     print_green(str_to_color="Translated: ", str=translation)
-                    printed_silence = False                      
                     p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
                     p_synth.start()
                     p_play = mp.Process(target=play, args=(q, player_lock, play_command))
                     p_play.start()
-                else:
-                    if not printed_silence:
-                        print("* silence *\n")
-                        printed_silence = True
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
