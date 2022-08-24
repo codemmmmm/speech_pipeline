@@ -4,6 +4,7 @@ import os
 import sys
 import json
 import subprocess
+from subprocess import CalledProcessError
 import argparse
 import time
 import multiprocessing as mp
@@ -75,9 +76,17 @@ def load_trans_models(marian_directory, marian_directory_en):
         tokenizer = MarianTokenizer.from_pretrained(marian_directory)
     return trans_model, tokenizer
 
-def make_ffmpeg_command(in_video: str, filter: bool, sample_rate: int) -> str: 
+def get_sample_rate(file_path):
+    """Get sample rate of audio channel 0"""
+    try:
+        return int(subprocess.run(('ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=sample_rate', '-of', 'default=noprint_wrappers=1:nokey=1', file_path),
+            check=True, stdout=subprocess.PIPE).stdout)
+    except CalledProcessError as e:
+        sys.exit(e)
+
+def make_ffmpeg_command(in_video: str, filter: bool) -> str: 
     command = ('ffmpeg', '-loglevel', 'error', '-i', in_video,
-            '-ar', str(sample_rate), '-ac', '1', '-f', 'wav',)
+            '-ac', '1', '-f', 'wav',)
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
     noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
     use_stdout = ('-',)
@@ -105,11 +114,12 @@ def main():
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARNING)
     args = get_argparser().parse_args()
 
-    SAMPLE_RATE=48000
+    logging.info("Getting sample rate...")
+    sample_rate = get_sample_rate(args.in_video)
     # Initialise recognizer
     logging.info("Initialising recognizer...")
     rec_model = load_vosk_model(args.in_language)
-    rec = KaldiRecognizer(rec_model, SAMPLE_RATE)
+    rec = KaldiRecognizer(rec_model, sample_rate)
 
     # Initialise translator
     logging.info("Initialising translator...")
@@ -134,7 +144,7 @@ def main():
     player_lock = mp.Lock()
 
     play_command = ('aplay', '-', '-t', 'wav', '--quiet')
-    ffmpeg_command = make_ffmpeg_command(args.in_video, args.filter, SAMPLE_RATE)
+    ffmpeg_command = make_ffmpeg_command(args.in_video, args.filter)
     ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
     logging.info("Starting ffmpeg...")    
 
