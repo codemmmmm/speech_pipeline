@@ -92,6 +92,9 @@ def make_ffmpeg_command(in_video: str, filter: bool) -> str:
     use_stdout = ('-',)
     return command + noise_filter + use_stdout if filter else command + use_stdout
 
+def get_text_from_result(result):
+   return json.loads(result)['text']
+
 def synth(q, lock, translation, speaker_name):
     # lock to prevent tts-server returning a small sentence before a longer sentence that was requested earlier
     with lock:
@@ -157,20 +160,25 @@ def main():
         print('#' * 80)
         print('Press Ctrl+C to stop')
         print('#' * 80)
-        while True:
+        file_exhausted = False
+        while not file_exhausted:
+            text = ""
             # read ffmpeg stream
             audio = ffmpeg_process.stdout.read(4000)
             if rec.AcceptWaveform(audio):
-                result = json.loads(rec.Result())
-                text = result['text']
-                if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
-                    print_green(str_to_color="Recognized: ", str=text)
-                    translation = translator(text)[0]['translation_text']
-                    print_green(str_to_color="Translated: ", str=translation)
-                    p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
-                    p_synth.start()
-                    p_play = mp.Process(target=play, args=(q, player_lock, play_command))
-                    p_play.start()
+                text = get_text_from_result(rec.Result())
+            elif len(audio) == 0:
+                # process last words after file is exhausted (rec.AcceptWaveform will not return True)
+                text = get_text_from_result(rec.FinalResult())
+                file_exhausted = True
+            if text.strip() not in ("", "the"): # if text.strip() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
+                print_green(str_to_color="Recognized: ", str=text)
+                translation = translator(text)[0]['translation_text']
+                print_green(str_to_color="Translated: ", str=translation)
+                p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
+                p_synth.start()
+                p_play = mp.Process(target=play, args=(q, player_lock, play_command))
+                p_play.start()
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
