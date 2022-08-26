@@ -84,8 +84,10 @@ def get_sample_rate(file_path):
     except CalledProcessError as e:
         sys.exit(e)
 
-def make_ffmpeg_command(in_video: str, filter: bool) -> str: 
-    command = ('ffmpeg', '-loglevel', 'error', '-i', in_video,
+def make_ffmpeg_command(in_video: str, video_pipe_name: str, filter: bool) -> str:
+    # read video file, write to pipe for player, convert to single channel audio and write to stdout for recognizer
+    command = ('ffmpeg', '-y', '-loglevel', 'quiet', '-i', in_video,
+            '-movflags', 'empty_moov', '-f', 'mp4', video_pipe_name,
             '-ac', '1', '-f', 'wav',)
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
     noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
@@ -103,8 +105,8 @@ def synth(q, lock, translation, speaker_name):
     if result:
         q.put(result)
 
-def play(q, lock, play_command):
-    play_process = subprocess.Popen(play_command, stdin=subprocess.PIPE)
+def play(q, lock, play_tts_command):
+    play_process = subprocess.Popen(play_tts_command, stdin=subprocess.PIPE)
     # lock to prevent playing multiple files at the same time
     with lock:
         play_process.communicate(q.get())
@@ -142,20 +144,28 @@ def main():
     #     curl = subprocess.run(curl_cmd)
     speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
 
+    # pipe for playing the video
+    video_pipe_name = 'video_pipe'
+    if os.path.exists(video_pipe_name):
+        os.remove(video_pipe_name)
+    os.mkfifo(video_pipe_name)    
+
     q = mp.Queue()
     synth_lock = mp.Lock()
     player_lock = mp.Lock()
 
-    play_command = ('aplay', '-', '-t', 'wav', '--quiet')
-    ffmpeg_command = make_ffmpeg_command(args.in_video, args.filter)
+    play_tts_command = ('aplay', '-', '-t', 'wav', '--quiet')
+    ffmpeg_command = make_ffmpeg_command(args.in_video, video_pipe_name, args.filter)
+    logging.info("Starting ffmpeg...")
     ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
-    logging.info("Starting ffmpeg...")    
-
+    logging.info('Starting mpv...')
+    subprocess.Popen(('mpv', video_pipe_name, '--volume=70', '--quiet'))
+    
     try:
         # check if subprocesses started successfully
         time.sleep(2) # without sleep it would check too early
         if ffmpeg_process.poll() not in (None, 0): # should just be: if not None ?
-            raise Exception("ffmpeg failed to start!")
+            raise Exception("ffmpeg failed to start!")        
 
         print('#' * 80)
         print('Press Ctrl+C to stop')
@@ -177,13 +187,14 @@ def main():
                 print_green(str_to_color="Translated: ", str=translation)
                 p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
                 p_synth.start()
-                p_play = mp.Process(target=play, args=(q, player_lock, play_command))
+                p_play = mp.Process(target=play, args=(q, player_lock, play_tts_command))
                 p_play.start()
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
         #tts_server.kill()
         ffmpeg_process.kill()
+        os.remove(video_pipe_name)
 
 if __name__ == "__main__":
     main()
