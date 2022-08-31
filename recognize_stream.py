@@ -65,7 +65,7 @@ def load_vosk_model(in_lang):
     except Exception as e:
         sys.exit("Exception: " + str(e))
 
-def load_trans_models(marian_directory, marian_directory_en):
+def load_trans_models(marian_directory, marian_model_name):
     if not os.path.exists(marian_directory):
         # download models and then load local model files
         trans_model = MarianMTModel.from_pretrained(marian_model_name)
