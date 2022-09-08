@@ -1,5 +1,4 @@
 wheel
-pyworld
 sentencepiece
 transformers
 sacremoses
