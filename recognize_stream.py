@@ -132,16 +132,16 @@ def main():
     trans_model, tokenizer = load_trans_models(marian_directory, marian_model_name)
     translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 
-    # # Initialise TTS
-    # logging.info("Starting tts-server...")
-    # tts_model_name = get_tts_name(args.in_language)
-    # tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
-    # # wait till tts-server finished loading
-    # curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
-    # curl = subprocess.run(curl_cmd)
-    # while curl.returncode != 0:
-    #     time.sleep(0.5)
-    #     curl = subprocess.run(curl_cmd)
+    # Initialise TTS
+    logging.info("Starting tts-server...")
+    tts_model_name = get_tts_name(args.in_language)
+    tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
+    # wait till tts-server finished loading
+    curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
+    curl = subprocess.run(curl_cmd)
+    while curl.returncode != 0:
+        time.sleep(0.5)
+        curl = subprocess.run(curl_cmd)
     speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
 
     # pipe for playing the video
@@ -192,7 +192,7 @@ def main():
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
-        #tts_server.kill()
+        tts_server.kill()
         ffmpeg_process.kill()
         os.remove(video_pipe_name)
 
