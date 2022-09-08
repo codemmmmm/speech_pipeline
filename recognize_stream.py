@@ -86,7 +86,7 @@ def get_sample_rate(file_path):
 
 def make_ffmpeg_command(in_video: str, video_pipe_name: str, filter: bool) -> str:
     # read video file, write to pipe for player, convert to single channel audio and write to stdout for recognizer
-    command = ('ffmpeg', '-y', '-loglevel', 'quiet', '-i', in_video,
+    command = ('ffmpeg', '-y', '-loglevel', 'fatal', '-i', in_video,
             '-movflags', 'empty_moov', '-codec', 'copy', '-f', 'mp4', video_pipe_name,
             '-ac', '1', '-f', 'wav',)
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
