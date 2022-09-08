@@ -1,3 +1,5 @@
+# OUTDATED 
+
 # Speech recognition
 
 Linux python project to:
