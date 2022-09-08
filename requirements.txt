@@ -1,0 +1,10 @@
+wheel
+pyworld
+sentencepiece
+transformers
+sacremoses
+vosk # maybe needs to be vosk==0.3.42 (and pip https://github.com/alphacep/vosk-api/releases ...
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+torchaudio
