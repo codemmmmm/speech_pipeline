@@ -159,7 +159,7 @@ def main():
     logging.info("Starting ffmpeg...")
     ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
     logging.info('Starting mpv...')
-    subprocess.Popen(('mpv', video_pipe_name, '--volume=70', '--really-quiet'))
+    subprocess.Popen(('mpv', video_pipe_name, '--really-quiet', '--volume=35'))
     
     try:
         # check if subprocesses started successfully
@@ -184,7 +184,7 @@ def main():
             if text.strip() not in ("", "the"): # if text.strip() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
                 print_green(str_to_color="Recognized: ", str=text)
                 translation = translator(text)[0]['translation_text']
-                print_green(str_to_color="Translated: ", str=translation)
+                print_green(str_to_color="Translated: ", str=translation + "\n")
                 p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
                 p_synth.start()
                 p_play = mp.Process(target=play, args=(q, player_lock, play_tts_command))
