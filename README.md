@@ -1,10 +1,10 @@
-# OUTDATED 
+# OUTDATED
 
 # Speech recognition
 
 Linux python project to:
-* convert human English speech, from either a file, a microphone or an application, to text
-* then translate it to German 
+* recognize human speech (German or English), from either a microphone or a video
+* then translate it to English or German
 * then convert it into speech (text-to-speech).
 
 ## Installation
