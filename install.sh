@@ -14,7 +14,6 @@ echo "Creating python venv $HOME/$venv_name"
 python3 -m venv $HOME/$venv_name
 source $HOME/$venv_name/bin/activate
 pip3 install --upgrade pip
-pip3 install wheel
 pip3 install -r requirements.txt
 
 python3 recognize_stream.py --help
