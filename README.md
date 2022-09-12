@@ -24,8 +24,8 @@ All machine learning models will automatically be downloaded:
 
 ### From a file
 
-Run `python3 process_speech.py -h` for more information
+Run `python3 process_speech.py --help` for more information
 
 ### From a microphone
 
-Run `python3 process_speech.py -h` for more information
+Run `python3 process_speech.py --help` for more information
