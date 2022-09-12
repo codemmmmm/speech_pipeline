@@ -159,7 +159,7 @@ def main():
     logging.info("Starting ffmpeg...")
     ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
     logging.info('Starting mpv...')
-    subprocess.Popen(('mpv', video_pipe_name, '--volume=70', '--quiet'))
+    subprocess.Popen(('mpv', video_pipe_name, '--volume=70', '--really-quiet'))
     
     try:
         # check if subprocesses started successfully
