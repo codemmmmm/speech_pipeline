@@ -22,10 +22,12 @@ All machine learning models will automatically be downloaded the first time they
 
 ## Usage
 
+Run `python3 process_speech --help` for more information
+
 ### From a file
 
-Run `python3 process_speech.py --help` for more information
+Run `python3 process_speech.py [video_file]`
 
 ### From a microphone
 
-Run `python3 process_speech.py --help` for more information
+Run `python3 process_speech.py`
