@@ -3,7 +3,7 @@
 Linux python project to:
 * recognize human speech (German or English), from either a microphone or a video
 * then translate it to English or German
-* then convert it into speech (text-to-speech)
+* then convert it into speech (text-to-speech).
 
 ## Installation
 
