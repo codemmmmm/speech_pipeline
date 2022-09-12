@@ -135,7 +135,7 @@ def main():
     # Initialise TTS
     logging.info("Starting tts-server...")
     tts_model_name = get_tts_name(args.in_language)
-    tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
+    tts_server_process = subprocess.Popen(["tts-server", "--model_name", tts_model_name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     # wait till tts-server finished loading
     curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
     curl = subprocess.run(curl_cmd)
@@ -192,7 +192,7 @@ def main():
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
-        tts_server.kill()
+        tts_server_process.kill()
         ffmpeg_process.kill()
         os.remove(video_pipe_name)
 
