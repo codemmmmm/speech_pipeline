@@ -9,7 +9,8 @@ if [ "$EUID" -eq 0 ]
 fi
 
 venv_name="venv_speech_pipeline"
-sudo apt-get update && sudo apt-get install python3-venv ffmpeg mpv espeak-ng curl
+# without python3-pip installed (outside the project venv) installing pyworld will fail
+sudo apt-get update && sudo apt-get install python3-venv ffmpeg mpv espeak-ng curl python3-pip
 echo "Creating python venv $HOME/$venv_name"
 python3 -m venv $HOME/$venv_name
 source $HOME/$venv_name/bin/activate

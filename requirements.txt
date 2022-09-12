@@ -1,4 +1,3 @@
-wheel
 pyworld==0.2.10
 sentencepiece
 transformers
