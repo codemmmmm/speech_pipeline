@@ -2,6 +2,11 @@
 # Clone https://github.com/codemmmmm/speech_pipeline.git
 # Switch to branch read_from_video 'git checkout read_from_video'
 
+# running as root creates the venv in /root and maybe does more bad stuff
+if [ "$EUID" -eq 0 ]
+  then echo "Please don't run as root."
+  exit
+fi
 
 venv_name="venv_speech_pipeline"
 sudo apt-get update && sudo apt-get install python3-venv ffmpeg mpv espeak-ng curl
