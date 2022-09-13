@@ -113,6 +113,34 @@ def play(q, lock, play_tts_command):
     with lock:
         play_process.communicate(q.get())
 
+def translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
+    print_green(str_to_color="Recognized: ", str=text)
+    translation = translator(text)[0]['translation_text']
+    print_green(str_to_color="Translated: ", str=translation + "\n")
+    p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name))
+    p_synth.start()
+    p_play = mp.Process(target=play, args=(q, player_lock, play_tts_command))
+    p_play.start()
+
+def main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
+    # to prevent printing 'silence' too often
+    printed_silence = False
+    while True:
+        # read ffmpeg stream
+        audio = ffmpeg_process.stdout.read(4000)
+        if rec.AcceptWaveform(audio):
+            text = get_text_from_result(rec.Result())
+            if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
+                translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+                printed_silence = False
+            else:
+                if not printed_silence:
+                    print("* silence *\n")
+                    printed_silence = True
+
+def main_loop_video():
+    pass
+
 def main():
     if not sys.platform == "linux":
         sys.exit("Please use a linux OS.")
@@ -121,7 +149,11 @@ def main():
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARNING)
 
     args = get_argparser().parse_args()
-
+    if args.subcommand == "mic":
+        print("Setting up recognizer on microphone stream...")
+    else:
+        print("Setting up recognizer on video file...")
+    
     if args.list_devices:
         print("index   name")
         subprocess.run(['pactl', 'list', 'short', 'sources'])
@@ -144,12 +176,13 @@ def main():
     tts_model_name = get_tts_name(args.in_language)
     tts_server_process = subprocess.Popen(["tts-server", "--model_name", tts_model_name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     # wait till tts-server finished loading
+    logging.info("Waiting for tts-server to be available")
     curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
     curl = subprocess.run(curl_cmd)
     while curl.returncode != 0:
         time.sleep(0.5)
         curl = subprocess.run(curl_cmd)
-    speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
+    speaker_name = 'p364' if args.in_language == 'de' else None # "--speaker_idx", "p227" "p364" "ED\n"
 
     q = mp.Queue()
     synth_lock = mp.Lock()
@@ -160,35 +193,16 @@ def main():
     logging.info("Starting ffmpeg...")
     ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
 
-    # to prevent printing 'silence' too often
-    printed_silence = False
     try:
         # check if subprocesses started successfully
         time.sleep(2) # without sleep it would check too early
         if ffmpeg_process.poll() not in (None, 0): # should just be: if not None ?
-            raise Exception("ffmpeg recorder failed to start!")
+            raise Exception("ffmpeg failed to start!")
 
         print('#' * 80)
         print('Press Ctrl+C to stop')
         print('#' * 80)
-        while True:
-            # read ffmpeg stream
-            audio = ffmpeg_process.stdout.read(4000)
-            if rec.AcceptWaveform(audio):
-                text = get_text_from_result(rec.Result())
-                if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
-                    print_green(str_to_color="Recognized: ", str=text)
-                    translation = translator(text)[0]['translation_text']
-                    print_green(str_to_color="Translated: ", str=translation + "\n")
-                    p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
-                    p_synth.start()
-                    p_play = mp.Process(target=play, args=(q, player_lock, play_tts_command))
-                    p_play.start()
-                    printed_silence = False
-                else:
-                    if not printed_silence:
-                        print("* silence *\n")
-                        printed_silence = True
+        main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
