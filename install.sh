@@ -1,6 +1,5 @@
 #!/bin/bash
 # Clone https://github.com/codemmmmm/speech_pipeline.git
-# Switch to branch read_from_video 'git checkout read_from_video'
 
 # running as root creates the venv in /root and maybe does more bad stuff
 if [ "$EUID" -eq 0 ]
