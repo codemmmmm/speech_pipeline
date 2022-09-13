@@ -155,7 +155,7 @@ def main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, s
                     print("* silence *\n")
                     printed_silence = True
 
-def main_loop_video():
+def main_loop_video(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
     file_exhausted = False
     while not file_exhausted:
         text = ""
@@ -218,6 +218,12 @@ def main():
         time.sleep(0.5)
         curl = subprocess.run(curl_cmd)
     speaker_name = 'p364' if args.in_language == 'de' else None # "--speaker_idx", "p227" "p364" "ED\n"
+
+    # pipe for playing the video
+    video_pipe_name = 'video_pipe'
+    if os.path.exists(video_pipe_name):
+        os.remove(video_pipe_name)
+    os.mkfifo(video_pipe_name)  
 
     q = mp.Queue()
     synth_lock = mp.Lock()
