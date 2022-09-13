@@ -193,6 +193,7 @@ def main():
         # maybe a higher value would be useful, vosk example shows it with 16000
         sample_rate=16000
     else:
+        logging.info("Getting audio channel's sample rate")
         sample_rate = get_sample_rate(args.in_video)
     # Initialise recognizer
     logging.info("Initialising recognizer...")
