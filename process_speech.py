@@ -116,30 +116,30 @@ def make_ffmpeg_command_video(in_video: str, video_pipe_name: str, filter: bool)
 def get_text_from_result(result):
     return json.loads(result)['text']
 
-def synth(q, lock, translation, speaker_name):
+def synth(tts_audio_queue, lock, translation, speaker_name):
     # lock to prevent tts-server returning a small sentence before a longer sentence that was requested earlier
     with lock:
         logging.info("Calling TTS...")
         result = cTTS.synthesize(translation, speaker_name)
     if result:
-        q.put(result)
+        tts_audio_queue.put(result)
 
-def play(q, lock, play_tts_command):
+def play(tts_audio_queue, lock, play_tts_command):
     play_process = subprocess.Popen(play_tts_command, stdin=subprocess.PIPE)
     # lock to prevent playing multiple files at the same time
     with lock:
-        play_process.communicate(q.get())
+        play_process.communicate(tts_audio_queue.get())
 
-def translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
+def translate_synthesize_play(text, translator, tts_audio_queue, synth_lock, player_lock, speaker_name, play_tts_command):
     print_green(str_to_color="Recognized: ", str=text)
     translation = translator(text)[0]['translation_text']
     print_green(str_to_color="Translated: ", str=translation + "\n")
-    p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name))
+    p_synth = mp.Process(target=synth, args=(tts_audio_queue, synth_lock, translation, speaker_name))
     p_synth.start()
-    p_play = mp.Process(target=play, args=(q, player_lock, play_tts_command))
+    p_play = mp.Process(target=play, args=(tts_audio_queue, player_lock, play_tts_command))
     p_play.start()
 
-def main_loop_mic(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
+def main_loop_mic(ffmpeg_process, recognizer, translator, tts_audio_queue, synth_lock, player_lock, speaker_name, play_tts_command):
     # to prevent printing 'silence' too often
     printed_silence = False
     while True:
@@ -148,14 +148,14 @@ def main_loop_mic(ffmpeg_process, recognizer, translator, q, synth_lock, player_
         if recognizer.AcceptWaveform(audio):
             text = get_text_from_result(recognizer.Result())
             if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
-                translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+                translate_synthesize_play(text, translator, tts_audio_queue, synth_lock, player_lock, speaker_name, play_tts_command)
                 printed_silence = False
             else:
                 if not printed_silence:
                     print("* silence *\n")
                     printed_silence = True
 
-def main_loop_video(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
+def main_loop_video(ffmpeg_process, recognizer, translator, tts_audio_queue, synth_lock, player_lock, speaker_name, play_tts_command):
     file_exhausted = False
     while not file_exhausted:
         text = ""
@@ -168,7 +168,7 @@ def main_loop_video(ffmpeg_process, recognizer, translator, q, synth_lock, playe
             text = get_text_from_result(recognizer.FinalResult())
             file_exhausted = True
         if text.strip() not in ("", "the"): # if text.strip() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
-            translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+            translate_synthesize_play(text, translator, tts_audio_queue, synth_lock, player_lock, speaker_name, play_tts_command)
 
 def main():
     if not sys.platform == "linux":
@@ -225,7 +225,7 @@ def main():
         os.remove(video_pipe_name)
     os.mkfifo(video_pipe_name)  
 
-    q = mp.Queue()
+    tts_audio_queue = mp.Queue()
     synth_lock = mp.Lock()
     player_lock = mp.Lock()
 
@@ -250,9 +250,9 @@ def main():
         print('Press Ctrl+C to stop')
         print('#' * 80)
         if args.subcommand == "mic":
-            main_loop_mic(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+            main_loop_mic(ffmpeg_process, recognizer, translator, tts_audio_queue, synth_lock, player_lock, speaker_name, play_tts_command)
         else:
-            main_loop_video(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+            main_loop_video(ffmpeg_process, recognizer, translator, tts_audio_queue, synth_lock, player_lock, speaker_name, play_tts_command)
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
