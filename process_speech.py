@@ -4,6 +4,7 @@ import os
 import sys
 import json
 import subprocess
+from subprocess import CalledProcessError
 import argparse
 import time
 import multiprocessing as mp
@@ -78,13 +79,16 @@ def load_trans_models(marian_directory, marian_model_name):
         tokenizer = MarianTokenizer.from_pretrained(marian_directory)
     return trans_model, tokenizer
 
-def make_record_command(device: str, filter: bool, sample_rate):
+def make_ffmpeg_command(device: str, filter: bool, sample_rate):
     command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', device,
             '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
     noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
     use_stdout = ('-',)
     return command + noise_filter + use_stdout if filter else command + use_stdout
+
+def get_text_from_result(result):
+    return json.loads(result)['text']
 
 def synth(q, lock, translation, speaker_name):
     # lock to prevent tts-server returning a small sentence before a longer sentence that was requested earlier
@@ -94,8 +98,8 @@ def synth(q, lock, translation, speaker_name):
     if result:
         q.put(result)
 
-def play(q, lock, play_command):
-    play_process = subprocess.Popen(play_command, stdin=subprocess.PIPE)
+def play(q, lock, play_tts_command):
+    play_process = subprocess.Popen(play_tts_command, stdin=subprocess.PIPE)
     # lock to prevent playing multiple files at the same time
     with lock:
         play_process.communicate(q.get())
@@ -126,55 +130,53 @@ def main():
     trans_model, tokenizer = load_trans_models(marian_directory, marian_model_name)
     translator = pipeline(task=task, model=trans_model, tokenizer=tokenizer)
 
-    # # Initialise TTS
-    # logging.info("Starting tts-server...")
-    # tts_model_name = get_tts_name(args.in_language)
-    # tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name])
-    # # wait till tts-server finished loading
-    # curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
-    # curl = subprocess.run(curl_cmd)
-    # while curl.returncode != 0:
-    #     time.sleep(0.5)
-    #     curl = subprocess.run(curl_cmd)
+    # Initialise TTS
+    logging.info("Starting tts-server...")
+    tts_model_name = get_tts_name(args.in_language)
+    tts_server = subprocess.Popen(["tts-server", "--model_name", tts_model_name], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    # wait till tts-server finished loading
+    curl_cmd = ['curl', 'localhost:5002', '--silent', '--output', '/dev/null']
+    curl = subprocess.run(curl_cmd)
+    while curl.returncode != 0:
+        time.sleep(0.5)
+        curl = subprocess.run(curl_cmd)
     speaker_name = 'p364' # "--speaker_idx", "p227" "p364" "ED\n"
 
     q = mp.Queue()
     synth_lock = mp.Lock()
     player_lock = mp.Lock()
 
-    play_command = ('aplay', '-', '-t', 'wav', '--quiet')
-    record_command = make_record_command(args.device, args.filter, SAMPLE_RATE)
-    record_process = subprocess.Popen(record_command, stdout=subprocess.PIPE)
-    logging.info("Starting recording...")    
+    play_tts_command = ('aplay', '-', '-t', 'wav', '--quiet')
+    ffmpeg_command = make_ffmpeg_command(args.device, args.filter, SAMPLE_RATE)
+    logging.info("Starting ffmpeg...")    
+    ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
 
     # to prevent printing 'silence' too often
     printed_silence = False
     try:
         # check if subprocesses started successfully
         time.sleep(2) # without sleep it would check too early
-        #if play_process.poll() not in (None, 0):
-        #    raise Exception("aplay/ffplay player failed to start!")
-        if record_process.poll() not in (None, 0): # should just be: if not None ?
+        if ffmpeg_process.poll() not in (None, 0): # should just be: if not None ?
             raise Exception("ffmpeg recorder failed to start!")
 
         print('#' * 80)
-        print('Press Ctrl+C to stop recording')
+        print('Press Ctrl+C to stop')
         print('#' * 80)
         while True:
             # read ffmpeg stream
-            recorded_audio = record_process.stdout.read(4000)
+            recorded_audio = ffmpeg_process.stdout.read(4000)
             if rec.AcceptWaveform(recorded_audio):
                 result = json.loads(rec.Result())
                 text = result['text']
                 if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
                     print_green(str_to_color="Recognized: ", str=text)
                     translation = translator(text)[0]['translation_text']
-                    print_green(str_to_color="Translated: ", str=translation)
-                    printed_silence = False                      
+                    print_green(str_to_color="Translated: ", str=translation + "\n")
                     p_synth = mp.Process(target=synth, args=(q, synth_lock, translation, speaker_name if args.in_language == 'de' else None))
                     p_synth.start()
-                    p_play = mp.Process(target=play, args=(q, player_lock, play_command))
+                    p_play = mp.Process(target=play, args=(q, player_lock, play_tts_command))
                     p_play.start()
+                    printed_silence = False
                 else:
                     if not printed_silence:
                         print("* silence *\n")
@@ -182,8 +184,8 @@ def main():
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
-        #tts_server.kill()
-        record_process.kill()
+        tts_server.kill()
+        ffmpeg_process.kill()
 
 if __name__ == "__main__":
     main()
