@@ -15,17 +15,19 @@ Tested on Ubuntu 22.04.1 LTS with Python 3.10.4 and pip 22.2.2
 
 ## Models
 
-All machine learning models will automatically be downloaded:
+All machine learning models will automatically be downloaded the first time they are needed:
 * [Vosk](https://alphacephei.com/vosk/) models in `~/.cache/vosk/` (more than 1 GB each)
 * [Marian](https://huggingface.co/docs/transformers/model_doc/marian) models in working/git directory
 * [TTS](https://github.com/coqui-ai/TTS) models in `~/.local/share/tts/`
 
 ## Usage
 
+Run `python3 process_speech --help` for more information
+
 ### From a file
 
-Run `python3 process_speech.py --help` for more information
+Run `python3 process_speech.py [video_file]`
 
 ### From a microphone
 
-Run `python3 process_speech.py --help` for more information
+Run `python3 process_speech.py`
