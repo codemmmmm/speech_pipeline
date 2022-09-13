@@ -20,5 +20,5 @@ pip3 install -r requirements.txt
 python3 process_speech.py --help
 normal=$(tput sgr0)
 green=$(tput setaf 2)
-echo "Try: $green python3 process_speech.py --in-language de tagesschau.mp4 $normal"
+echo "Try: $green python3 process_speech.py --in-language de video tagesschau.mp4 $normal"
 echo "You have to activate the virtual environment: $green source $HOME/$venv_name/bin/activate $normal"
