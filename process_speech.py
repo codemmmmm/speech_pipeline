@@ -139,14 +139,14 @@ def translate_synthesize_play(text, translator, q, synth_lock, player_lock, spea
     p_play = mp.Process(target=play, args=(q, player_lock, play_tts_command))
     p_play.start()
 
-def main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
+def main_loop_mic(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
     # to prevent printing 'silence' too often
     printed_silence = False
     while True:
         # read ffmpeg stream
         audio = ffmpeg_process.stdout.read(4000)
-        if rec.AcceptWaveform(audio):
-            text = get_text_from_result(rec.Result())
+        if recognizer.AcceptWaveform(audio):
+            text = get_text_from_result(recognizer.Result())
             if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
                 translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
                 printed_silence = False
@@ -155,17 +155,17 @@ def main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, s
                     print("* silence *\n")
                     printed_silence = True
 
-def main_loop_video(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
+def main_loop_video(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command):
     file_exhausted = False
     while not file_exhausted:
         text = ""
         # read ffmpeg stream
         audio = ffmpeg_process.stdout.read(4000)
-        if rec.AcceptWaveform(audio):
-            text = get_text_from_result(rec.Result())
+        if recognizer.AcceptWaveform(audio):
+            text = get_text_from_result(recognizer.Result())
         elif len(audio) == 0:
-            # process last words after file is exhausted (rec.AcceptWaveform will not return True)
-            text = get_text_from_result(rec.FinalResult())
+            # process last words after file is exhausted (recognizer.AcceptWaveform will not return True)
+            text = get_text_from_result(recognizer.FinalResult())
             file_exhausted = True
         if text.strip() not in ("", "the"): # if text.strip() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
             translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
@@ -198,7 +198,7 @@ def main():
     # Initialise recognizer
     logging.info("Initialising recognizer...")
     rec_model = load_vosk_model(args.in_language)
-    rec = KaldiRecognizer(rec_model, sample_rate)
+    recognizer = KaldiRecognizer(rec_model, sample_rate)
 
     # Initialise translator
     logging.info("Initialising translator...")
@@ -250,9 +250,9 @@ def main():
         print('Press Ctrl+C to stop')
         print('#' * 80)
         if args.subcommand == "mic":
-            main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+            main_loop_mic(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
         else:
-            main_loop_video(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+            main_loop_video(ffmpeg_process, recognizer, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
