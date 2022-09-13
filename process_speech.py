@@ -39,7 +39,6 @@ def get_argparser():
     parser_video.add_argument(
             'in_video',
             help='video file for input')
-    parser.parse_args()
     return parser
 
 def get_marian_names(lang) -> (str, str):
@@ -88,9 +87,27 @@ def load_trans_models(marian_directory, marian_model_name):
         tokenizer = MarianTokenizer.from_pretrained(marian_directory)
     return trans_model, tokenizer
 
-def make_ffmpeg_command(device: str, filter: bool, sample_rate):
+def get_sample_rate(file_path):
+    """Get sample rate of audio channel 0"""
+    try:
+        return int(subprocess.run(('ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_entries', 'stream=sample_rate', '-of', 'default=noprint_wrappers=1:nokey=1', file_path),
+            check=True, stdout=subprocess.PIPE).stdout)
+    except CalledProcessError as e:
+        sys.exit(e)
+
+def make_ffmpeg_command_mic(device: str, filter: bool, sample_rate: int):
     command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', device,
             '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
+    # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
+    noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
+    use_stdout = ('-',)
+    return command + noise_filter + use_stdout if filter else command + use_stdout
+
+def make_ffmpeg_command_video(in_video: str, video_pipe_name: str, filter: bool) -> str:
+    # read video file, write to pipe for player, convert to single channel audio and write to stdout for recognizer
+    command = ('ffmpeg', '-y', '-loglevel', 'fatal', '-i', in_video,
+            '-movflags', 'empty_moov', '-codec', 'copy', '-f', 'mp4', video_pipe_name,
+            '-ac', '1', '-f', 'wav',)
     # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
     noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
     use_stdout = ('-',)
@@ -139,7 +156,19 @@ def main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, s
                     printed_silence = True
 
 def main_loop_video():
-    pass
+    file_exhausted = False
+    while not file_exhausted:
+        text = ""
+        # read ffmpeg stream
+        audio = ffmpeg_process.stdout.read(4000)
+        if rec.AcceptWaveform(audio):
+            text = get_text_from_result(rec.Result())
+        elif len(audio) == 0:
+            # process last words after file is exhausted (rec.AcceptWaveform will not return True)
+            text = get_text_from_result(rec.FinalResult())
+            file_exhausted = True
+        if text.strip() not in ("", "the"): # if text.strip() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
+            translate_synthesize_play(text, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
 
 def main():
     if not sys.platform == "linux":
@@ -154,16 +183,21 @@ def main():
     else:
         print("Setting up recognizer on video file...")
     
-    if args.list_devices:
-        print("index   name")
-        subprocess.run(['pactl', 'list', 'short', 'sources'])
-        sys.exit()
+    if args.subcommand == "mic":
+        if args.list_devices:
+            print("index   name")
+            subprocess.run(['pactl', 'list', 'short', 'sources'])
+            sys.exit()
 
-    SAMPLE_RATE=16000
+    if args.subcommand == "mic":
+        # maybe a higher value would be useful, vosk example shows it with 16000
+        sample_rate=16000
+    else:
+        sample_rate = get_sample_rate(args.in_video)
     # Initialise recognizer
     logging.info("Initialising recognizer...")
     rec_model = load_vosk_model(args.in_language)
-    rec = KaldiRecognizer(rec_model, SAMPLE_RATE)
+    rec = KaldiRecognizer(rec_model, sample_rate)
 
     # Initialise translator
     logging.info("Initialising translator...")
@@ -189,9 +223,15 @@ def main():
     player_lock = mp.Lock()
 
     play_tts_command = ('aplay', '-', '-t', 'wav', '--quiet')
-    ffmpeg_command = make_ffmpeg_command(args.device, args.filter, SAMPLE_RATE)
+    if args.subcommand == "mic":
+        ffmpeg_command = make_ffmpeg_command_mic(args.device, args.filter, sample_rate)
+    else:
+        ffmpeg_command = make_ffmpeg_command_video(args.in_video, video_pipe_name, args.filter)
     logging.info("Starting ffmpeg...")
     ffmpeg_process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE)
+    if args.subcommand == "video":
+        logging.info('Starting mpv...')
+        subprocess.Popen(('mpv', video_pipe_name, '--really-quiet', '--volume=35'))
 
     try:
         # check if subprocesses started successfully
@@ -202,12 +242,17 @@ def main():
         print('#' * 80)
         print('Press Ctrl+C to stop')
         print('#' * 80)
-        main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+        if args.subcommand == "mic":
+            main_loop_mic(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
+        else:
+            main_loop_video(ffmpeg_process, rec, translator, q, synth_lock, player_lock, speaker_name, play_tts_command)
     except KeyboardInterrupt:
         print_green('Done!')
     finally:
         tts_server_process.kill()
         ffmpeg_process.kill()
+        if args.subcommand == "video":
+            os.remove(video_pipe_name)
 
 if __name__ == "__main__":
     main()
