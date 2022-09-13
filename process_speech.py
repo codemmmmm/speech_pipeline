@@ -20,17 +20,26 @@ def print_green(str_to_color, str=""):
 def get_argparser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-l', '--list-devices', action='store_true',
-        help='show list of ALSA sources and exit (\'pactl list short sources\')')
-    parser.add_argument(
-        '-d', '--device', default='default',
-        help='set ALSA source (name (recommended) or index)')
-    parser.add_argument(
         '-i', '--in-language', default="en", choices=("en", "de"),
         help='set input language')
     parser.add_argument(
         '-f', '--filter', action='store_true',
-        help='use denoiser')
+        help='use noise filter')
+
+    subparsers = parser.add_subparsers(required=True)
+    parser_mic = subparsers.add_parser('mic')
+    parser_mic.add_argument(
+        '-l', '--list-devices', action='store_true',
+        help='show list of ALSA sources and exit (\'pactl list short sources\')')
+    parser_mic.add_argument(
+        '-d', '--device', default='default',
+        help='set ALSA source (name (recommended) or index)')
+
+    parser_video = subparsers.add_parser('video')
+    parser_video.add_argument(
+            'in_video',
+            help='video file for input')
+    parser.parse_args()
     return parser
 
 def get_marian_names(lang) -> (str, str):
