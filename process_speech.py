@@ -98,8 +98,7 @@ def get_sample_rate(file_path):
 def make_ffmpeg_command_mic(device: str, filter: bool, sample_rate: int):
     command = ('ffmpeg', '-loglevel', 'fatal', '-f', 'pulse', '-i', device,
             '-ar', str(sample_rate) , '-ac', '1', '-f', 's16le')
-    # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
-    noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
+    noise_filter = ('-filter:a', 'afftdn=nf=-30')
     use_stdout = ('-',)
     return command + noise_filter + use_stdout if filter else command + use_stdout
 
@@ -108,8 +107,7 @@ def make_ffmpeg_command_video(in_video: str, video_pipe_name: str, filter: bool)
     command = ('ffmpeg', '-y', '-loglevel', 'fatal', '-i', in_video,
             '-movflags', 'empty_moov', '-codec', 'copy', '-f', 'mp4', video_pipe_name,
             '-ac', '1', '-f', 'wav',)
-    # model for arnndn https://github.com/GregorR/rnnoise-models/tree/master/beguiling-drafter-2018-08-30
-    noise_filter = ('-filter:a', 'afftdn=nf=-30') # 'afftdn=nf=-30,arnndn=m=beguiling-drafter-2018-08-30/bd.rnnn:mix=0.5'
+    noise_filter = ('-filter:a', 'afftdn=nf=-30')
     use_stdout = ('-',)
     return command + noise_filter + use_stdout if filter else command + use_stdout
 
