@@ -26,7 +26,7 @@ def get_argparser():
         '-f', '--filter', action='store_true',
         help='use noise filter')
 
-    subparsers = parser.add_subparsers(required=True)
+    subparsers = parser.add_subparsers(required=True, dest='subcommand')
     parser_mic = subparsers.add_parser('mic')
     parser_mic.add_argument(
         '-l', '--list-devices', action='store_true',
@@ -173,10 +173,9 @@ def main():
         print('#' * 80)
         while True:
             # read ffmpeg stream
-            recorded_audio = ffmpeg_process.stdout.read(4000)
-            if rec.AcceptWaveform(recorded_audio):
-                result = json.loads(rec.Result())
-                text = result['text']
+            audio = ffmpeg_process.stdout.read(4000)
+            if rec.AcceptWaveform(audio):
+                text = get_text_from_result(rec.Result())
                 if text.strip() not in ("", "the"): # if text.trim() not in ("", "the", "one", "ln", "now", 'köln', 'einen' ...) or just discard all single word recognitions?
                     print_green(str_to_color="Recognized: ", str=text)
                     translation = translator(text)[0]['translation_text']
